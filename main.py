@@ -145,41 +145,41 @@ TONES = {
         },
         "seductive": {
             "name": "فریبنده و وسوسه‌انگیز 💋",
-            "prompt": "Sultry, smooth, and breathy, with a teasing quality. Sensual and inviting, slow and languid pacing, long teasing pauses, softening words like 'عشق' or 'دل'."
+            "prompt": "Sultry, smooth, and breathy, with a teasing quality. Sensual and inviting, slow and languid pacing, long teasing pauses, softening words like 'عشق' یا 'دل'."
         },
         "tired": {
             "name": "خسته و بی‌حال 😴",
-            "prompt": "Sluggish, low, and breathy, with a yawning quality. Apathetic and unmotivated, slow and dragging pacing, long lazy pauses, stretching words like 'خسته‌م' or 'بی‌حال'."
+            "prompt": "Sluggish, low, and breathy, with a yawning quality. Apathetic and unmotivated, slow and dragging pacing, long lazy pauses, stretching words like 'خسته‌م' یا 'بی‌حال'."
         }
     },
     "functional": {
         "instructional": {
             "name": "آموزشی 📚",
-            "prompt": "Clear, steady, and articulate, with a teacherly tone. Informative and patient, moderate pacing, brief pauses after steps, enunciating words like 'گام' or 'یاد'."
+            "prompt": "Clear, steady, and articulate, with a teacherly tone. Informative and patient, moderate pacing, brief pauses after steps, enunciating words like 'گام' یا 'یاد'."
         },
         "motivational": {
             "name": "انگیزشی 🚀",
-            "prompt": "Uplifting, passionate, and resonant, with rising intonation. Empowering and enthusiastic, moderate pacing, pauses after motivational phrases, stressing words like 'باور' or 'موفقیت'."
+            "prompt": "Uplifting, passionate, and resonant, with rising intonation. Empowering and enthusiastic, moderate pacing, pauses after motivational phrases, stressing words like 'باور' یا 'موفقیت'."
         },
         "sales": {
             "name": "تبلیغاتی و قانع‌کننده 💸",
-            "prompt": "Smooth, confident, and enthusiastic, with a persuasive edge. Convincing and engaging, fast and dynamic pacing, brief pauses after selling points, emphasizing words like 'فرصت' or 'ویژه'."
+            "prompt": "Smooth, confident, and enthusiastic, with a persuasive edge. Convincing and engaging, fast and dynamic pacing, brief pauses after selling points, emphasizing words like 'فرصت' یا 'ویژه'."
         },
         "news_like": {
             "name": "خبری 📰",
-            "prompt": "Clear, neutral, and professional, with a broadcast quality. Objective and concise, steady and brisk pacing, brief professional pauses, using formal words like 'گزارش' or 'اخبار'."
+            "prompt": "Clear, neutral, and professional, with a broadcast quality. Objective and concise, steady and brisk pacing, brief professional pauses, using formal words like 'گزارش' یا 'اخبار'."
         },
         "documentary": {
             "name": "مستند 🎥",
-            "prompt": "Warm, articulate, and engaging, with a storytelling quality. Informative and curious, moderate pacing, pauses after fascinating facts, emphasizing words like 'جهان' or 'کشف'."
+            "prompt": "Warm, articulate, and engaging, with a storytelling quality. Informative and curious, moderate pacing, pauses after fascinating facts, emphasizing words like 'جهان' یا 'کشف'."
         },
         "meditative": {
             "name": "مراقبه‌ای و معنوی 🕉️",
-            "prompt": "Soft, breathy, and hypnotic, with a soothing cadence. Serene and introspective, very slow pacing, long calming pauses, softening words like 'آرامش' or 'روح'."
+            "prompt": "Soft, breathy, and hypnotic, with a soothing cadence. Serene and introspective, very slow pacing, long calming pauses, softening words like 'آرامش' یا 'روح'."
         },
         "debate": {
             "name": "بحث‌برانگیز و منطقی ⚖️",
-            "prompt": "Sharp, confident, and assertive, with a debating edge. Logical and intense, fast and precise pacing, brief pauses after strong points, stressing words like 'دلیل' or 'حقیقت'."
+            "prompt": "Sharp, confident, and assertive, with a debating edge. Logical and intense, fast and precise pacing, brief pauses after strong points, stressing words like 'دلیل' یا 'حقیقت'."
         }
     }
 }
@@ -217,12 +217,11 @@ def call_api(prompt, image=None):
         raw_response = response.text
         logger.info(f"پاسخ خام API: {raw_response[:500]}...")
         
-        try:
-            json_response = response.json()
-            return json_response.get("response", "پاسخی دریافت نشد.")
-        except ValueError as e:
-            logger.error(f"پاسخ API JSON معتبر نیست: {raw_response[:500]}..., خطا: {str(e)}")
-            return "متأسفانه دستیار هوشمند در حال حاضر قادر به پاسخگویی نیست. لطفاً بعداً امتحان کنید."
+        # مستقیماً از پاسخ متنی استفاده می‌کنیم
+        if raw_response.strip():
+            return raw_response
+        else:
+            return "پاسخی دریافت نشد."
     except requests.RequestException as e:
         logger.error(f"خطا در ارتباط با API: {str(e)}")
         return "خطا در ارتباط با API. لطفاً دوباره امتحان کنید."
