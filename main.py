@@ -17,6 +17,7 @@ from pydub import AudioSegment
 from PIL import Image
 import io
 import base64
+import uvicorn
 
 # تنظیم لاگینگ
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -720,10 +721,12 @@ async def main():
     except Exception as e:
         logger.error(f"خطا در راه‌اندازی ربات: {str(e)}")
         raise
+    return application
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        # اجرای ربات و سرور
+        application = asyncio.run(main())
         uvicorn.run(app, host="0.0.0.0", port=8080)
     except Exception as e:
         logger.error(f"خطا در اجرای برنامه: {str(e)}")
@@ -731,7 +734,10 @@ if __name__ == "__main__":
         try:
             if application.running:
                 logger.info("توقف ربات")
-                asyncio.run(application.bot.delete_webhook())
-                asyncio.run(application.stop())
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(application.bot.delete_webhook())
+                loop.run_until_complete(application.stop())
+                loop.close()
         except Exception as e:
             logger.error(f"خطا در توقف ربات: {str(e)}")
