@@ -2,12 +2,11 @@ import requests
 import urllib.parse
 import os
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
     filters,
     ContextTypes,
 )
@@ -149,17 +148,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "🎙 تبدیل متن به صدا":
         try:
             keyboard = [
-                [InlineKeyboardButton("✍️ لحن و حس دستی", callback_data="manual_feeling")],
-                [
-                    InlineKeyboardButton("📢 لحن‌های کاربردی", callback_data="functional"),
-                    InlineKeyboardButton("👑 لحن‌های نمایشی / شخصیتی", callback_data="character_affects")
-                ],
-                [
-                    InlineKeyboardButton("🎤 لحن‌های گفتاری", callback_data="voice_styles"),
-                    InlineKeyboardButton("🎭 لحن‌های احساسی", callback_data="emotional")
-                ]
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"]
             ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
                 "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
                 "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
@@ -172,7 +165,72 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return None
 
     if "state" in context.user_data:
-        if context.user_data["state"] == "manual_feeling":
+        # انتخاب دسته‌بندی لحن
+        if context.user_data["state"] == "select_tone_category":
+            category_map = {
+                "✍️ لحن و حس دستی": "manual_feeling",
+                "📢 لحن‌های کاربردی": "functional",
+                "👑 لحن‌های نمایشی / شخصیتی": "character_affects",
+                "🎤 لحن‌های گفتاری": "voice_styles",
+                "🎭 لحن‌های احساسی": "emotional"
+            }
+            if text in category_map:
+                if text == "✍️ لحن و حس دستی":
+                    context.user_data["state"] = "manual_feeling"
+                    await update.message.reply_text(
+                        "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
+                        "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+                    return None
+                else:
+                    category = category_map[text]
+                    tones = TONES[category]
+                    keyboard = []
+                    for i in range(0, len(tones), 2):
+                        row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                        if i + 1 < len(tones):
+                            row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                        keyboard.append(row)
+                    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                    category_names = {
+                        "emotional": "لحن‌های احساسی",
+                        "voice_styles": "لحن‌های گفتاری",
+                        "character_affects": "لحن‌های نمایشی / شخصیتی",
+                        "functional": "لحن‌های کاربردی"
+                    }
+                    await update.message.reply_text(
+                        f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                        reply_markup=reply_markup
+                    )
+                    context.user_data["state"] = "select_tone"
+                    context.user_data["selected_category"] = category
+                    return None
+
+        # انتخاب حس
+        elif context.user_data["state"] == "select_tone":
+            category = context.user_data.get("selected_category")
+            tones = TONES[category]
+            # حذف ایموجی از متن ورودی برای تطبیق
+            tone_name = text
+            for tone in tones:
+                if f"{tone['emoji']} {tone['name']}" == text:
+                    tone_name = tone["name"]
+                    context.user_data["feeling"] = tone["prompt"]
+                    context.user_data["state"] = "text"
+                    await update.message.reply_text(
+                        "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
+                        "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+                    return None
+            await update.message.reply_text(
+                "لطفاً یک حس معتبر از لیست انتخاب کنید."
+            )
+            return None
+
+        # دریافت حس دستی
+        elif context.user_data["state"] == "manual_feeling":
             feeling = text
             if len(feeling) > MAX_FEELING_LENGTH:
                 await update.message.reply_text(
@@ -183,10 +241,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["state"] = "text"
             await update.message.reply_text(
                 "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
-                "مثال: Yeah, yeah, ya got Big Apple Insurance"
+                "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                reply_markup=ReplyKeyboardRemove()
             )
             return None
         
+        # دریافت متن
         elif context.user_data["state"] == "text":
             if len(text) > MAX_TEXT_LENGTH:
                 await update.message.reply_text(
@@ -198,157 +258,108 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = []
             row = []
             for voice in SUPPORTED_VOICES:
-                row.append(InlineKeyboardButton(voice.capitalize(), callback_data=voice))
+                row.append(voice.capitalize())
                 if len(row) == 4:
                     keyboard.append(row)
                     row = []
             if row:
                 keyboard.append(row)
-            reply_markup = InlineKeyboardMarkup(keyboard)
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
                 "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
                 reply_markup=reply_markup
             )
             return None
-    
-    return None
-
-async def receive_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = update.effective_user.id
-    data = query.data
-    logger.info(f"دریافت داده از کاربر {user_id}: {data}")
-
-    # انتخاب دسته‌بندی لحن
-    if context.user_data.get("state") == "select_tone_category":
-        if data == "manual_feeling":
-            context.user_data["state"] = "manual_feeling"
-            await query.message.reply_text(
-                "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
-                "مثال: Dramatic یا Gruff, fast-talking, New York accent"
-            )
-            return None
-        elif data in TONES:
-            tones = TONES[data]
-            keyboard = []
-            for i in range(0, len(tones), 2):
-                row = []
-                row.append(InlineKeyboardButton(f"{tones[i]['emoji']} {tones[i]['name']}", callback_data=f"tone_{data}_{tones[i]['name']}"))
-                if i + 1 < len(tones):
-                    row.append(InlineKeyboardButton(f"{tones[i+1]['emoji']} {tones[i+1]['name']}", callback_data=f"tone_{data}_{tones[i+1]['name']}"))
-                keyboard.append(row)
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            category_names = {
-                "emotional": "لحن‌های احساسی",
-                "voice_styles": "لحن‌های گفتاری",
-                "character_affects": "لحن‌های نمایشی / شخصیتی",
-                "functional": "لحن‌های کاربردی"
-            }
-            await query.message.edit_text(
-                f"🎙 {category_names[data]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
-                reply_markup=reply_markup
-            )
-            context.user_data["state"] = "select_tone"
-            return None
-
-    # انتخاب حس
-    elif context.user_data.get("state") == "select_tone" and data.startswith("tone_"):
-        _, category, tone_name = data.split("_", 2)
-        tones = TONES[category]
-        selected_tone = next(tone for tone in tones if tone["name"] == tone_name)
-        context.user_data["feeling"] = selected_tone["prompt"]
-        context.user_data["state"] = "text"
-        await query.message.edit_text(
-            "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
-            "مثال: Yeah, yeah, ya got Big Apple Insurance"
-        )
-        return None
-
-    # انتخاب صدا و تولید فایل صوتی
-    elif context.user_data.get("state") == "voice":
-        voice = data
-        text = context.user_data["text"]
-        instructions = context.user_data["feeling"]
-        output_file = f"output_{uuid4()}.mp3"
         
-        try:
-            status_message = await query.message.reply_text("در حال آنالیز متن 🔍")
-            await asyncio.sleep(1.5)
-            await status_message.edit_text("درحال تولید صدا 🎙")
-            
-            progress_duration = 4
-            step_duration = progress_duration / 20
-            for percentage in range(0, 101, 5):
-                try:
-                    keyboard = [[InlineKeyboardButton(f"{create_progress_bar(percentage)}", callback_data="progress")]]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    await status_message.edit_text(
-                        "درحال تولید صدا 🎙",
-                        reply_markup=reply_markup
-                    )
-                except Exception as e:
-                    logger.error(f"خطا در به‌روزرسانی پروگرس بار ({percentage}%) برای کاربر {user_id}: {str(e)}")
-                await asyncio.sleep(step_duration)
-            
-            await status_message.edit_text("تولید صدا در حال انجام است...")
-            
-        except Exception as e:
-            logger.error(f"خطا در ارسال یا به‌روزرسانی پیام وضعیت برای کاربر {user_id}: {str(e)}")
-            await query.message.reply_text(
-                "خطا در شروع تولید صدا. لطفاً دوباره امتحان کنید."
-            )
-            return None
-        
-        success = generate_audio(text, instructions, voice, output_file)
-        
-        if success:
-            try:
-                with open(output_file, "rb") as audio:
-                    await query.message.reply_audio(
-                        audio=audio,
-                        caption=f"صدا: {voice.capitalize()}",
-                        title="Generated Audio"
-                    )
-                os.remove(output_file)
-                logger.info(f"فایل صوتی ارسال و حذف شد برای کاربر {user_id}: {output_file}")
-                
-                await status_message.edit_text(
-                    "✅ فایل صوتی با موفقیت ارسال شد! برای تولید دوباره، روی دکمه تبدیل متن به صدا کلیک کنید."
+        # دریافت صدا
+        elif context.user_data["state"] == "voice":
+            voice = text.lower()
+            if voice not in SUPPORTED_VOICES:
+                await update.message.reply_text(
+                    "لطفاً یک صدای معتبر از لیست انتخاب کنید."
                 )
-                    
+                return None
+            text = context.user_data["text"]
+            instructions = context.user_data["feeling"]
+            output_file = f"output_{uuid4()}.mp3"
+            
+            try:
+                status_message = await update.message.reply_text("در حال آنالیز متن 🔍")
+                await asyncio.sleep(1.5)
+                await status_message.edit_text("درحال تولید صدا 🎙")
+                
+                progress_duration = 4
+                step_duration = progress_duration / 20
+                for percentage in range(0, 101, 5):
+                    try:
+                        await status_message.edit_text(
+                            f"درحال تولید صدا 🎙\n{create_progress_bar(percentage)}"
+                        )
+                    except Exception as e:
+                        logger.error(f"خطا در به‌روزرسانی پروگرس بار ({percentage}%) برای کاربر {user_id}: {str(e)}")
+                    await asyncio.sleep(step_duration)
+                
+                await status_message.edit_text("تولید صدا در حال انجام است...")
+                
             except Exception as e:
-                logger.error(f"خطا در ارسال فایل صوتی برای کاربر {user_id}: {str(e)}")
+                logger.error(f"خطا در ارسال یا به‌روزرسانی پیام وضعیت برای کاربر {user_id}: {str(e)}")
+                await update.message.reply_text(
+                    "خطا در شروع تولید صدا. لطفاً دوباره امتحان کنید."
+                )
+                return None
+            
+            success = generate_audio(text, instructions, voice, output_file)
+            
+            if success:
+                try:
+                    with open(output_file, "rb") as audio:
+                        await update.message.reply_audio(
+                            audio=audio,
+                            caption=f"صدا: {voice.capitalize()}",
+                            title="Generated Audio",
+                            reply_markup=ReplyKeyboardRemove()
+                        )
+                    os.remove(output_file)
+                    logger.info(f"فایل صوتی ارسال و حذف شد برای کاربر {user_id}: {output_file}")
+                    
+                    await status_message.edit_text(
+                        "✅ فایل صوتی با موفقیت ارسال شد! برای تولید دوباره، روی دکمه تبدیل متن به صدا کلیک کنید."
+                    )
+                        
+                except Exception as e:
+                    logger.error(f"خطا در ارسال فایل صوتی برای کاربر {user_id}: {str(e)}")
+                    try:
+                        await status_message.edit_text(
+                            "❌ خطا در ارسال فایل صوتی. لطفاً دوباره امتحان کنید."
+                        )
+                    except Exception:
+                        logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
+                finally:
+                    try:
+                        if os.path.exists(output_file):
+                            os.remove(output_file)
+                    except Exception:
+                        logger.warning(f"ناتوانی در حذف فایل صوتی برای کاربر {user_id}: {output_file}")
+            else:
                 try:
                     await status_message.edit_text(
-                        "❌ خطا در ارسال فایل صوتی. لطفاً دوباره امتحان کنید."
+                        "❌ خطا در تولید صدا. لطفاً مطمئن شوید حس (حداکثر 500 کاراکتر) و متن (حداکثر 1000 کاراکتر) مناسب هستند و صدا پشتیبانی می‌شود."
                     )
                 except Exception:
                     logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
-            finally:
-                try:
-                    if os.path.exists(output_file):
-                        os.remove(output_file)
-                except Exception:
-                    logger.warning(f"ناتوانی در حذف فایل صوتی برای کاربر {user_id}: {output_file}")
-        else:
-            try:
-                await status_message.edit_text(
-                    "❌ خطا در تولید صدا. لطفاً مطمئن شوید حس (حداکثر 500 کاراکتر) و متن (حداکثر 1000 کاراکتر) مناسب هستند و صدا پشتیبانی می‌شود."
-                )
-            except Exception:
-                logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
-        
-        context.user_data.clear()
-        return None
+            
+            context.user_data.clear()
+            return None
+    
+    return None
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logger.info(f"دریافت دستور /cancel از کاربر: {user_id}")
     try:
         await update.message.reply_text(
-            "عملیات لغو شد. با /start می‌تونید دوباره شروع کنید."
+            "عملیات لغو شد. با /start می‌تونید دوباره شروع کنید.",
+            reply_markup=ReplyKeyboardRemove()
         )
     except Exception as e:
         logger.error(f"خطا در ارسال پاسخ /cancel برای کاربر {user_id}: {str(e)}")
@@ -358,7 +369,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application = Application.builder().token(TOKEN).read_timeout(60).write_timeout(60).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-application.add_handler(CallbackQueryHandler(receive_voice))
 application.add_handler(CommandHandler("cancel", cancel))
 
 @app.post("/webhook")
