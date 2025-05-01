@@ -9,12 +9,12 @@ from telegram.ext import (
     MessageHandler,
     CallbackQueryHandler,
     filters,
-    ConversationHandler,
     ContextTypes,
 )
 from uuid import uuid4
 import logging
-from aiohttp import web
+from fastapi import FastAPI, Request, HTTPException
+import uvicorn
 
 # تنظیم لاگینگ برای دیباگ
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -34,6 +34,9 @@ SUPPORTED_VOICES = [
 
 # مراحل مکالمه
 FEELING, TEXT, VOICE = range(3)
+
+# ایجاد اپلیکیشن FastAPI
+app = FastAPI()
 
 def generate_audio(text, instructions, voice, output_file):
     logger.info(f"تولید صدا با متن: {text[:50]}..., حس: {instructions[:50]}..., صدا: {voice}")
@@ -253,38 +256,27 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطا در ارسال پاسخ /cancel برای کاربر {user_id}: {str(e)}")
     context.user_data.clear()
-    return ConversationHandler.END
-
-# تنظیم سرور Webhook
-async def webhook_handler(request):
-    try:
-        update = Update.de_json(await request.json(), application.bot)
-        await application.process_update(update)
-        return web.Response()
-    except Exception as e:
-        logger.error(f"خطا در پردازش درخواست webhook: {str(e)}")
-        return web.Response(status=500)
-
-async def setup_webhook():
-    try:
-        app = web.Application()
-        app.router.add_post('/webhook', webhook_handler)
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', 8080)  # پورت 8080 برای Render
-        await site.start()
-        logger.info("سرور Webhook شروع شد")
-    except Exception as e:
-        logger.error(f"خطا در راه‌اندازی سرور webhook: {str(e)}")
-        raise
+    return None
 
 # تنظیم ربات با تایم‌اوت بالاتر
 application = Application.builder().token(TOKEN).read_timeout(60).write_timeout(60).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 application.add_handler(CallbackQueryHandler(receive_voice))
+application.add_handler(CommandHandler("cancel", cancel))
 
-# اجرای ربات با webhook
+# تعریف endpoint برای webhook در FastAPI
+@app.post("/webhook")
+async def webhook(request: Request):
+    try:
+        update = Update.de_json(await request.json(), application.bot)
+        await application.process_update(update)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"خطا در پردازش درخواست webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# اجرای ربات با FastAPI
 async def main():
     try:
         await application.initialize()
@@ -293,23 +285,24 @@ async def main():
         logger.info("ربات شروع شد")
         await application.bot.set_webhook(url=WEBHOOK_URL)
         logger.info(f"Webhook تنظیم شد: {WEBHOOK_URL}")
-        await setup_webhook()
-        while True:
-            await asyncio.sleep(3600)
     except Exception as e:
-        logger.error(f"خطا در راه‌اندازی یا اجرای ربات: {str(e)}")
+        logger.error(f"خطا در راه‌اندازی ربات: {str(e)}")
         raise
+    # سرور FastAPI به طور جداگانه با uvicorn اجرا می‌شود
+
+if __name__ == "__main__":
+    try:
+        # اجرای اولیه ربات
+        asyncio.run(main())
+        # اجرای سرور FastAPI
+        uvicorn.run(app, host="0.0.0.0", port=8080)
+    except Exception as e:
+        logger.error(f"خطا در اجرای برنامه: {str(e)}")
     finally:
         try:
             if application.running:
                 logger.info("توقف ربات")
-                await application.bot.delete_webhook()
-                await application.stop()
+                asyncio.run(application.bot.delete_webhook())
+                asyncio.run(application.stop())
         except Exception as e:
             logger.error(f"خطا در توقف ربات: {str(e)}")
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        logger.error(f"خطا در asyncio.run: {str(e)}")
