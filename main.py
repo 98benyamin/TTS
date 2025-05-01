@@ -14,6 +14,7 @@ from uuid import uuid4
 import logging
 from fastapi import FastAPI, Request, HTTPException
 import uvicorn
+from pydub import AudioSegment
 
 # تنظیم لاگینگ
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -30,6 +31,9 @@ SUPPORTED_VOICES = [
     "alloy", "echo", "fable", "onyx", "nova", "shimmer",
     "coral", "verse", "ballad", "ash", "sage", "amuch", "dan", "elan"
 ]
+
+# فرمت‌های صوتی پشتیبانی‌شده
+SUPPORTED_FORMATS = ["mp3", "wav", "ogg"]
 
 # تعریف لحن‌ها
 TONES = {
@@ -81,10 +85,13 @@ TONES = {
 # ایجاد اپلیکیشن FastAPI
 app = FastAPI()
 
-def generate_audio(text, instructions, voice, output_file):
-    logger.info(f"تولید صدا با متن: {text[:50]}..., حس: {instructions[:50]}..., صدا: {voice}")
+def generate_audio(text, instructions, voice, output_file, audio_format="mp3"):
+    logger.info(f"تولید صدا با متن: {text[:50]}..., حس: {instructions[:50]}..., صدا: {voice}, فرمت: {audio_format}")
     if voice not in SUPPORTED_VOICES:
         logger.error(f"صدا {voice} پشتیبانی نمی‌شود")
+        return False
+    if audio_format not in SUPPORTED_FORMATS:
+        logger.error(f"فرمت {audio_format} پشتیبانی نمی‌شود")
         return False
     
     prompt = (
@@ -102,9 +109,18 @@ def generate_audio(text, instructions, voice, output_file):
         logger.info(f"ارسال درخواست GET به API: {url[:100]}...")
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
-            with open(output_file, "wb") as f:
+            temp_file = f"temp_{uuid4()}.mp3"
+            with open(temp_file, "wb") as f:
                 f.write(response.content)
-            logger.info(f"فایل صوتی ذخیره شد: {output_file}")
+            logger.info(f"فایل صوتی موقت ذخیره شد: {temp_file}")
+            
+            # تبدیل فرمت با pydub
+            audio = AudioSegment.from_file(temp_file)
+            audio.export(output_file, format=audio_format)
+            logger.info(f"فایل صوتی با فرمت {audio_format} ذخیره شد: {output_file}")
+            
+            # حذف فایل موقت
+            os.remove(temp_file)
             return True
         else:
             logger.error(f"خطا در API Pollinations: کد وضعیت {response.status_code}, پاسخ: {response.text}")
@@ -113,7 +129,7 @@ def generate_audio(text, instructions, voice, output_file):
         logger.error(f"خطا در ارتباط با API Pollinations: {str(e)}")
         return False
     except IOError as e:
-        logger.error(f"خطا در ذخیره فایل صوتی: {str(e)}")
+        logger.error(f"خطا در ذخیره یا تبدیل فایل صوتی: {str(e)}")
         return False
     except Exception as e:
         logger.error(f"خطای غیرمنتظره در تولید صدا: {str(e)}")
@@ -129,7 +145,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logger.info(f"دریافت دستور /start از کاربر: {user_id}")
     try:
-        keyboard = [["🎙 تبدیل متن به صدا"]]
+        keyboard = [["🎙 تبدیل متن به صدا"], ["🔙 برگشت"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
             "🎙 به ربات تبدیل متن به صدا خوش آمدید!\n\n"
@@ -137,6 +153,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "برای شروع، روی دکمه زیر کلیک کنید:",
             reply_markup=reply_markup
         )
+        context.user_data.clear()
+        context.user_data["state"] = "main"
     except Exception as e:
         logger.error(f"خطا در ارسال پاسخ /start برای کاربر {user_id}: {str(e)}")
     return None
@@ -145,12 +163,27 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
 
-    if text == "🎙 تبدیل متن به صدا":
-        try:
+    # مدیریت دکمه برگشت
+    if text == "🔙 برگشت":
+        current_state = context.user_data.get("state", "main")
+        previous_state = context.user_data.get("previous_state", "main")
+        
+        if current_state == "main":
+            await update.message.reply_text(
+                "شما در صفحه اصلی هستید!",
+                reply_markup=ReplyKeyboardMarkup([["🎙 تبدیل متن به صدا"], ["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+        
+        if previous_state == "main":
+            return await start(update, context)
+        
+        if previous_state == "select_tone_category":
             keyboard = [
                 ["✍️ لحن و حس دستی"],
                 ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
-                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"]
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
             ]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
@@ -159,6 +192,131 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=reply_markup
             )
             context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if previous_state == "select_tone":
+            category = context.user_data.get("selected_category")
+            tones = TONES[category]
+            keyboard = []
+            for i in range(0, len(tones), 2):
+                row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                if i + 1 < len(tones):
+                    row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            category_names = {
+                "emotional": "لحن‌های احساسی",
+                "voice_styles": "لحن‌های گفتاری",
+                "character_affects": "لحن‌های نمایشی / شخصیتی",
+                "functional": "لحن‌های کاربردی"
+            }
+            await update.message.reply_text(
+                f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone"
+            context.user_data["previous_state"] = "select_tone_category"
+            return None
+        
+        if previous_state == "manual_feeling":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if previous_state == "text":
+            if context.user_data.get("feeling_manual", False):
+                await update.message.reply_text(
+                    "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
+                    "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                context.user_data["state"] = "manual_feeling"
+                context.user_data["previous_state"] = "select_tone_category"
+            else:
+                category = context.user_data.get("selected_category")
+                tones = TONES[category]
+                keyboard = []
+                for i in range(0, len(tones), 2):
+                    row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                    if i + 1 < len(tones):
+                        row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                category_names = {
+                    "emotional": "لحن‌های احساسی",
+                    "voice_styles": "لحن‌های گفتاری",
+                    "character_affects": "لحن‌های نمایشی / شخصیتی",
+                    "functional": "لحن‌های کاربردی"
+                }
+                await update.message.reply_text(
+                    f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                    reply_markup=reply_markup
+                )
+                context.user_data["state"] = "select_tone"
+                context.user_data["previous_state"] = "select_tone_category"
+            return None
+        
+        if previous_state == "voice":
+            await update.message.reply_text(
+                "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
+                "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            context.user_data["state"] = "text"
+            context.user_data["previous_state"] = "select_tone" if not context.user_data.get("feeling_manual", False) else "manual_feeling"
+            return None
+        
+        if previous_state == "select_format":
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                row.append(voice.capitalize())
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "voice"
+            context.user_data["previous_state"] = "text"
+            return None
+
+    if text == "🎙 تبدیل متن به صدا":
+        try:
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
             return None
         except Exception as e:
             logger.error(f"خطا در نمایش منوی لحن‌ها برای کاربر {user_id}: {str(e)}")
@@ -177,10 +335,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if text in category_map:
                 if text == "✍️ لحن و حس دستی":
                     context.user_data["state"] = "manual_feeling"
+                    context.user_data["previous_state"] = "select_tone_category"
+                    context.user_data["feeling_manual"] = True
                     await update.message.reply_text(
                         "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
                         "مثال: Dramatic یا Gruff, fast-talking, New York accent",
-                        reply_markup=ReplyKeyboardRemove()
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                     )
                     return None
                 else:
@@ -192,6 +352,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         if i + 1 < len(tones):
                             row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
                         keyboard.append(row)
+                    keyboard.append(["🔙 برگشت"])
                     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
                     category_names = {
                         "emotional": "لحن‌های احساسی",
@@ -204,6 +365,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         reply_markup=reply_markup
                     )
                     context.user_data["state"] = "select_tone"
+                    context.user_data["previous_state"] = "select_tone_category"
                     context.user_data["selected_category"] = category
                     return None
 
@@ -211,21 +373,24 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif context.user_data["state"] == "select_tone":
             category = context.user_data.get("selected_category")
             tones = TONES[category]
-            # حذف ایموجی از متن ورودی برای تطبیق
             tone_name = text
             for tone in tones:
                 if f"{tone['emoji']} {tone['name']}" == text:
                     tone_name = tone["name"]
                     context.user_data["feeling"] = tone["prompt"]
+                    context.user_data["feeling_name"] = tone_name
                     context.user_data["state"] = "text"
+                    context.user_data["previous_state"] = "select_tone"
+                    context.user_data["feeling_manual"] = False
                     await update.message.reply_text(
                         "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
                         "مثال: Yeah, yeah, ya got Big Apple Insurance",
-                        reply_markup=ReplyKeyboardRemove()
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                     )
                     return None
             await update.message.reply_text(
-                "لطفاً یک حس معتبر از لیست انتخاب کنید."
+                "لطفاً یک حس معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
             )
             return None
 
@@ -234,15 +399,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             feeling = text
             if len(feeling) > MAX_FEELING_LENGTH:
                 await update.message.reply_text(
-                    f"خطا: حس شما {len(feeling)} کاراکتر است. لطفاً حسی با حداکثر {MAX_FEELING_LENGTH} کاراکتر وارد کنید."
+                    f"خطا: حس شما {len(feeling)} کاراکتر است. لطفاً حسی با حداکثر {MAX_FEELING_LENGTH} کاراکتر وارد کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
             context.user_data["feeling"] = feeling
+            context.user_data["feeling_name"] = "دستی"
             context.user_data["state"] = "text"
+            context.user_data["previous_state"] = "manual_feeling"
             await update.message.reply_text(
                 "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
                 "مثال: Yeah, yeah, ya got Big Apple Insurance",
-                reply_markup=ReplyKeyboardRemove()
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
             )
             return None
         
@@ -250,11 +418,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif context.user_data["state"] == "text":
             if len(text) > MAX_TEXT_LENGTH:
                 await update.message.reply_text(
-                    f"خطا: متن شما {len(text)} کاراکتر است. لطفاً متنی با حداکثر {MAX_TEXT_LENGTH} کاراکتر وارد کنید."
+                    f"خطا: متن شما {len(text)} کاراکتر است. لطفاً متنی با حداکثر {MAX_TEXT_LENGTH} کاراکتر وارد کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
             context.user_data["text"] = text
             context.user_data["state"] = "voice"
+            context.user_data["previous_state"] = "text"
             keyboard = []
             row = []
             for voice in SUPPORTED_VOICES:
@@ -264,6 +434,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     row = []
             if row:
                 keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
                 "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
@@ -276,12 +447,35 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             voice = text.lower()
             if voice not in SUPPORTED_VOICES:
                 await update.message.reply_text(
-                    "لطفاً یک صدای معتبر از لیست انتخاب کنید."
+                    "لطفاً یک صدای معتبر از لیست انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            context.user_data["voice"] = voice
+            context.user_data["state"] = "select_format"
+            context.user_data["previous_state"] = "voice"
+            keyboard = [["MP3", "WAV", "OGG"], ["🔙 برگشت"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً فرمت صوتی موردنظر را انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            return None
+        
+        # انتخاب فرمت صوتی
+        elif context.user_data["state"] == "select_format":
+            audio_format = text.lower()
+            if audio_format not in SUPPORTED_FORMATS:
+                await update.message.reply_text(
+                    "لطفاً یک فرمت معتبر (MP3، WAV، OGG) انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["MP3", "WAV", "OGG"], ["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
             text = context.user_data["text"]
             instructions = context.user_data["feeling"]
-            output_file = f"output_{uuid4()}.mp3"
+            voice = context.user_data["voice"]
+            feeling_name = context.user_data["feeling_name"]
+            output_file = f"output_{uuid4()}.{audio_format}"
             
             try:
                 status_message = await update.message.reply_text("در حال آنالیز متن 🔍")
@@ -304,18 +498,19 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logger.error(f"خطا در ارسال یا به‌روزرسانی پیام وضعیت برای کاربر {user_id}: {str(e)}")
                 await update.message.reply_text(
-                    "خطا در شروع تولید صدا. لطفاً دوباره امتحان کنید."
+                    "خطا در شروع تولید صدا. لطفاً دوباره امتحان کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
             
-            success = generate_audio(text, instructions, voice, output_file)
+            success = generate_audio(text, instructions, voice, output_file, audio_format)
             
             if success:
                 try:
                     with open(output_file, "rb") as audio:
                         await update.message.reply_audio(
                             audio=audio,
-                            caption=f"صدا: {voice.capitalize()}",
+                            caption=f"گوینده: {voice.capitalize()}\nحس صوت: {feeling_name}",
                             title="Generated Audio",
                             reply_markup=ReplyKeyboardRemove()
                         )
@@ -325,6 +520,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await status_message.edit_text(
                         "✅ فایل صوتی با موفقیت ارسال شد! برای تولید دوباره، روی دکمه تبدیل متن به صدا کلیک کنید."
                     )
+                    
+                    # بازگشت به صفحه اصلی
+                    keyboard = [["🎙 تبدیل متن به صدا"], ["🔙 برگشت"]]
+                    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                    await update.message.reply_text(
+                        "🎙 به ربات تبدیل متن به صدا خوش آمدید!\n\n"
+                        "برای تولید صدای جدید، روی دکمه زیر کلیک کنید:",
+                        reply_markup=reply_markup
+                    )
+                    context.user_data.clear()
+                    context.user_data["state"] = "main"
                         
                 except Exception as e:
                     logger.error(f"خطا در ارسال فایل صوتی برای کاربر {user_id}: {str(e)}")
@@ -348,7 +554,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
             
-            context.user_data.clear()
             return None
     
     return None
@@ -361,9 +566,17 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "عملیات لغو شد. با /start می‌تونید دوباره شروع کنید.",
             reply_markup=ReplyKeyboardRemove()
         )
+        context.user_data.clear()
+        context.user_data["state"] = "main"
+        keyboard = [["🎙 تبدیل متن به صدا"], ["🔙 برگشت"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await update.message.reply_text(
+            "🎙 به ربات تبدیل متن به صدا خوش آمدید!\n\n"
+            "برای تولید صدای جدید، روی دکمه زیر کلیک کنید:",
+            reply_markup=reply_markup
+        )
     except Exception as e:
         logger.error(f"خطا در ارسال پاسخ /cancel برای کاربر {user_id}: {str(e)}")
-    context.user_data.clear()
     return None
 
 application = Application.builder().token(TOKEN).read_timeout(60).write_timeout(60).build()
