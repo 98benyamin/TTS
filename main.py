@@ -2,7 +2,7 @@ import requests
 import urllib.parse
 import os
 import asyncio
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -13,7 +13,7 @@ from telegram.ext import (
 from uuid import uuid4
 import logging
 from fastapi import FastAPI, Request, HTTPException
-import uvicorn
+from pydub import AudioSegment
 from PIL import Image
 import io
 import base64
@@ -25,163 +25,68 @@ logger = logging.getLogger(__name__)
 # تنظیمات ربات
 TOKEN = "7520523575:AAHNy73MjTRmatJejA96BlaNu0hGHczfYvk"
 WEBHOOK_URL = "https://tts-qroo.onrender.com/webhook"
-MAX_TEXT_LENGTH = 1000  # حداکثر طول متن
+MAX_TEXT_LENGTH = 1000
+MAX_FEELING_LENGTH = 500
 
 # تنظیمات API دستیار هوشمند
 API_URL = "https://text.pollinations.ai/"
 SYSTEM_PROMPT = "شما دستیار ربات متن به صدا هستید لطفا به کاربران برای ساخت متن‌های کمک کنید."
 MODEL = "openai-large"
 
-# تعریف حس‌ها
+# لیست صداهای پشتیبانی‌شده
+SUPPORTED_VOICES = [
+    "alloy", "echo", "fable", "onyx", "nova", "shimmer",
+    "coral", "verse", "ballad", "ash", "sage", "amuch", "dan", "elan"
+]
+
+# فرمت‌های صوتی پشتیبانی‌شده
+SUPPORTED_FORMATS = ["mp3", "wav", "ogg"]
+
+# تعریف لحن‌ها
 TONES = {
-    "emotional": {
-        "joyful": {
-            "name": "شاد و سرزنده 😊",
-            "prompt": "Bright, lively, and warm, with a sing-song quality and frequent pitch rises. Upbeat, enthusiastic, and bursting with positivity. Fast and bouncy pacing, short pauses after key phrases, emphasizing elongated words like 'خوشحااال' or 'عااالی'."
-        },
-        "sad": {
-            "name": "غمگین و محزون 😢",
-            "prompt": "Soft, low-pitched, and heavy, with a trembling or wavering quality. Melancholic and sorrowful, slow and deliberate pacing, long heavy pauses, shaky tone for words like 'دلم' or 'غم'."
-        },
-        "excited": {
-            "name": "هیجان‌زده 🎉",
-            "prompt": "High-energy, animated, with rapid pitch shifts and vibrant intonation. Thrilled and eager, fast-paced with brief slows, short strategic pauses after big reveals, stretching words like 'فوووق‌العاده' or 'عاااالی'."
-        },
-        "angry": {
-            "name": "عصبانی 😣",
-            "prompt": "Sharp, intense, and forceful, with a raised pitch and clipped delivery. Heated and confrontational, quick and aggressive pacing, short tense pauses, emphasizing harsh consonants in words like 'بسّه' or 'دیگه'."
-        },
-        "hopeful": {
-            "name": "امیدوارکننده 🌟",
-            "prompt": "Warm, gentle, and rising, with a soothing yet optimistic cadence. Encouraging and inspiring, moderate pacing with slight slows, gentle pauses, softening vowels in words like 'امید' or 'آینده'."
-        },
-        "calm": {
-            "name": "آرام و ریلکس 🕊️",
-            "prompt": "Smooth, low, and steady, with minimal pitch variation. Serene and peaceful, slow and even pacing, long natural pauses, elongating words like 'آآآرام' or 'راحت'."
-        },
-        "anxious": {
-            "name": "مضطرب 😓",
-            "prompt": "High-pitched, shaky, and unsteady, with frequent hesitations. Tense and uncertain, erratic pacing with fast bursts and sudden slows, frequent uneven pauses, stuttering words like 'وااای' or 'استرس'."
-        },
-        "fearful": {
-            "name": "ترس‌آلود 😨",
-            "prompt": "Whispery, tense, and hushed, with sharp pitch rises for emphasis. Ominous and suspenseful, slow and deliberate pacing with sudden quick bursts, long pauses, whispering words like 'ترس' or 'خطر'."
-        },
-        "melancholic": {
-            "name": "غم‌انگیز یا نوستالژیک 🕰️",
-            "prompt": "Soft, wistful, and slightly breathy, with a reflective tone. Bittersweet and yearning, slow and lingering pacing, long reflective pauses, elongating vowels in 'خاطره' or 'گذشته'."
-        },
-        "loving": {
-            "name": "محبت‌آمیز 💖",
-            "prompt": "Warm, soft, and tender, with a gentle, caressing quality. Caring and intimate, slow and deliberate pacing, gentle pauses, softening words like 'عزیزم' or 'عشق'."
-        }
-    },
-    "voice_styles": {
-        "narrative": {
-            "name": "داستان‌گونه 📖",
-            "prompt": "Rich, expressive, and immersive, with varied pitch. Engaging and descriptive, moderate pacing with slows for drama, strategic pauses, emphasizing descriptive words like 'ناگهان' or 'ماجرا'."
-        },
-        "conversational": {
-            "name": "محاوره‌ای و خودمونی 😎",
-            "prompt": "Casual, friendly, and natural, like chatting with a friend. Relaxed and approachable, moderate pacing, natural pauses, using slang like 'آره دیگه' or 'خب'."
-        },
-        "formal": {
-            "name": "رسمی و دقیق 🎩",
-            "prompt": "Polished, clear, and authoritative, with steady intonation. Professional and respectful, measured pacing, brief purposeful pauses, enunciating words like 'محترم' or 'رسمی'."
-        },
-        "informal": {
-            "name": "صمیمی و ساده 😄",
-            "prompt": "Light, playful, and unpolished, with a relaxed vibe. Friendly and carefree, fast and loose pacing, minimal pauses, using colloquial terms like 'باحال' or 'فاز'."
-        },
-        "monotone": {
-            "name": "یکنواخت و بی‌حالت 🤖",
-            "prompt": "Flat, unchanging, and robotic, with no pitch variation. Neutral and detached, steady pacing, even predictable pauses, avoiding elongations."
-        },
-        "animated": {
-            "name": "نمایشی و پرانرژی 🎭",
-            "prompt": "Dynamic, colorful, and theatrical, with exaggerated pitch shifts. Lively and engaging, fast and varied pacing, dramatic pauses, stretching words like 'عاااالی' or 'باورنکردنییی'."
-        },
-        "dramatic": {
-            "name": "دراماتیک و پرتعلیق 🎬",
-            "prompt": "Intense, resonant, and gripping, with a cinematic quality. Suspenseful and emotional, slow pacing for tension, long suspenseful pauses, emphasizing words like 'سرنوشت' or 'خطر'."
-        },
-        "deadpan": {
-            "name": "خشک و بی‌احساس 😐",
-            "prompt": "Flat, monotone, and understated, with subtle irony. Sarcastic and detached, slow and deliberate pacing, brief pauses after sarcastic remarks, flat intonation for 'عجب' or 'جدی'."
-        }
-    },
-    "character_affects": {
-        "sarcastic": {
-            "name": "طعنه‌آمیز 🙄",
-            "prompt": "Snarky, exaggerated, and slightly nasal, with a mocking edge. Ironic and passive-aggressive, moderate pacing, pauses after sarcastic remarks, stretching words like 'عجببب' or 'واقعاًآآ'."
-        },
-        "heroic": {
-            "name": "حماسی ⚔️",
-            "prompt": "Deep, booming, and commanding, with a regal quality. Noble and inspiring, measured pacing, long pauses after rallying cries, emphasizing words like 'شجاعت' or 'افتخار'."
-        },
-        "mysterious": {
-            "name": "مرموز 🕵️",
-            "prompt": "Low, breathy, and elusive, with a hint of intrigue. Cryptic and alluring, slow and deliberate pacing, long suspenseful pauses, whispering words like 'راز' or 'پنهان'."
-        },
-        "commanding": {
-            "name": "دستوری و قاطع 🛡️",
-            "prompt": "Firm, loud, and authoritative, with a no-nonsense tone. Direct and confident, quick and sharp pacing, brief pauses, stressing words like 'برو' or 'باشه'."
-        },
-        "wise": {
-            "name": "حکیمانه 🧙",
-            "prompt": "Warm, deep, and measured, with a reflective quality. Thoughtful and profound, slow and deliberate pacing, long pauses, softening words like 'حکمت' or 'راه'."
-        },
-        "childlike": {
-            "name": "کودکانه 🧸",
-            "prompt": "High-pitched, bubbly, and playful, with a sing-song quality. Curious and naive, fast and erratic pacing, short excited pauses, using playful words like 'ووووی' or 'قشنگه'."
-        },
-        "evil": {
-            "name": "شیطانی 😈",
-            "prompt": "Low, raspy, and menacing, with a chilling edge. Dark and malicious, slow and deliberate pacing, long eerie pauses, hissing words like 'خطر' or 'نابودی'."
-        },
-        "old_fashioned": {
-            "name": "کلاسیک و قدیمی 📜",
-            "prompt": "Deep, formal, and slightly nasal, with an antique charm. Grand and reverent, slow and deliberate pacing, pauses after poetic phrases, using old Persian words like 'یار' or 'سخن'."
-        },
-        "seductive": {
-            "name": "فریبنده و وسوسه‌انگیز 💋",
-            "prompt": "Sultry, smooth, and breathy, with a teasing quality. Sensual and inviting, slow and languid pacing, long teasing pauses, softening words like 'عشق' یا 'دل'."
-        },
-        "tired": {
-            "name": "خسته و بی‌حال 😴",
-            "prompt": "Sluggish, low, and breathy, with a yawning quality. Apathetic and unmotivated, slow and dragging pacing, long lazy pauses, stretching words like 'خسته‌م' یا 'بی‌حال'."
-        }
-    },
-    "functional": {
-        "instructional": {
-            "name": "آموزشی 📚",
-            "prompt": "Clear, steady, and articulate, with a teacherly tone. Informative and patient, moderate pacing, brief pauses after steps, enunciating words like 'گام' یا 'یاد'."
-        },
-        "motivational": {
-            "name": "انگیزشی 🚀",
-            "prompt": "Uplifting, passionate, and resonant, with rising intonation. Empowering and enthusiastic, moderate pacing, pauses after motivational phrases, stressing words like 'باور' یا 'موفقیت'."
-        },
-        "sales": {
-            "name": "تبلیغاتی و قانع‌کننده 💸",
-            "prompt": "Smooth, confident, and enthusiastic, with a persuasive edge. Convincing and engaging, fast and dynamic pacing, brief pauses after selling points, emphasizing words like 'فرصت' یا 'ویژه'."
-        },
-        "news_like": {
-            "name": "خبری 📰",
-            "prompt": "Clear, neutral, and professional, with a broadcast quality. Objective and concise, steady and brisk pacing, brief professional pauses, using formal words like 'گزارش' یا 'اخبار'."
-        },
-        "documentary": {
-            "name": "مستند 🎥",
-            "prompt": "Warm, articulate, and engaging, with a storytelling quality. Informative and curious, moderate pacing, pauses after fascinating facts, emphasizing words like 'جهان' یا 'کشف'."
-        },
-        "meditative": {
-            "name": "مراقبه‌ای و معنوی 🕉️",
-            "prompt": "Soft, breathy, and hypnotic, with a soothing cadence. Serene and introspective, very slow pacing, long calming pauses, softening words like 'آرامش' یا 'روح'."
-        },
-        "debate": {
-            "name": "بحث‌برانگیز و منطقی ⚖️",
-            "prompt": "Sharp, confident, and assertive, with a debating edge. Logical and intense, fast and precise pacing, brief pauses after strong points, stressing words like 'دلیل' یا 'حقیقت'."
-        }
-    }
+    "emotional": [
+        {"name": "شاد و سرزنده", "emoji": "😊", "prompt": "Bright, lively, and warm, with a sing-song quality and frequent pitch rises. Upbeat, enthusiastic, and bursting with positivity, like celebrating a joyful moment. Fast and bouncy pacing during exciting moments, with slight slows for emphasis (e.g., 'وای، چه روز قشنگی!'). Pure happiness and contagious excitement, radiating warmth. Friendly, approachable, and full of life, like a best friend sharing good news. Short pauses after key phrases (e.g., 'آآآره، باورنکردنیه!') to let the joy sink in. Emphasize elongated words like 'خوشحااال' or 'عااالی' for a Persian cheerful vibe."},
+        {"name": "غمگین و محزون", "emoji": "😢", "prompt": "Soft, low-pitched, and heavy, with a trembling or wavering quality. Melancholic, sorrowful, and introspective, evoking deep emotional weight. Slow and deliberate pacing, with drawn-out syllables (e.g., 'چرااا اینجوری شد؟') to convey grief. Heartfelt sadness, with a touch of longing or regret. Vulnerable and empathetic, inviting the listener to feel the pain. Long, heavy pauses after emotional statements to emphasize sorrow. Use a shaky tone for words like 'دلم' or 'غم' to heighten Persian emotional resonance."},
+        {"name": "هیجان‌زده", "emoji": "🎉", "prompt": "High-energy, animated, with rapid pitch shifts and vibrant intonation. Thrilled and eager, creating an electrifying atmosphere. Fast-paced, especially during climactic moments (e.g., 'وای، باورم نمیشه!'), with brief slows for emphasis. Bursting with anticipation and positive energy. Engaging and infectious, like a hype-person rallying a crowd. Short, strategic pauses after big reveals (e.g., 'آره، بردیم!') to build excitement. Stretch words like 'فوووق‌العاده' or 'عاااالی' for Persian enthusiasm."},
+        {"name": "عصبانی", "emoji": "😣", "prompt": "Sharp, intense, and forceful, with a raised pitch and clipped delivery. Heated, confrontational, and brimming with irritation. Quick and aggressive pacing, with abrupt stops for emphasis (e.g., 'چرااا گوش نمیدی؟'). Raw anger mixed with frustration, demanding attention. Assertive and commanding, like someone fed up with nonsense. Short, tense pauses after strong statements to let the anger linger. Emphasize harsh consonants in words like 'بسّه' or 'دیگه' for Persian intensity."},
+        {"name": "امیدوارکننده", "emoji": "🌟", "prompt": "Warm, gentle, and rising, with a soothing yet optimistic cadence. Encouraging, inspiring, and forward-looking, like a beacon of light. Moderate pacing, with a steady flow and slight slows for key messages (e.g., 'ما می‌تونیم...'). Optimism, faith, and quiet strength. Supportive and motivational, like a wise friend offering encouragement. Gentle pauses after hopeful phrases to let the message resonate. Soften vowels in words like 'امید' or 'آینده' for a Persian uplifting feel."},
+        {"name": "آرام و ریلکس", "emoji": "🕊️", "prompt": "Smooth, low, and steady, with minimal pitch variation. Serene, peaceful, and grounding, creating a tranquil atmosphere. Slow and even pacing, with a flowing rhythm (e.g., 'همه‌چیز آرومه...'). Tranquility and ease, inviting relaxation. Reassuring and composed, like a meditation guide. Long, natural pauses to mimic a calm breath, enhancing the soothing effect. Elongate words like 'آآآرام' or 'راحت' for a Persian relaxed vibe."},
+        {"name": "مضطرب", "emoji": "😓", "prompt": "High-pitched, shaky, and unsteady, with frequent hesitations. Tense, uncertain, and restless, conveying unease. Erratic pacing, with fast bursts and sudden slows (e.g., 'نمی‌دونم... چیکار کنم؟'). Worry and nervousness, teetering on panic. Relatable and vulnerable, like someone overwhelmed by pressure. Frequent, uneven pauses to mimic hesitation or doubt. Stutter or stretch words like 'وااای' or 'استرس' for Persian anxiety."},
+        {"name": "ترس‌آلود", "emoji": "😨", "prompt": "Whispery, tense, and hushed, with sharp pitch rises for emphasis. Ominous, gripping, and suspenseful, building dread. Slow and deliberate pacing, with sudden quick bursts for scary moments (e.g., 'چی... پشت سرمه؟'). Fear, anticipation, and unease, keeping listeners on edge. Urgent and immersive, like a storyteller describing a haunted tale. Long pauses before revealing scary details to heighten tension. Whisper words like 'ترس' or 'خطر' with a Persian eerie vibe."},
+        {"name": "غم‌انگیز یا نوستالژیک", "emoji": "🕰️", "prompt": "Soft, wistful, and slightly breathy, with a reflective tone. Bittersweet, yearning, and introspective, evoking memories. Slow and lingering pacing, with drawn-out phrases (e.g., 'یادش بخییییر...'). Sadness mixed with fondness for the past. Sentimental and heartfelt, like an old friend reminiscing. Long, reflective pauses after nostalgic references to let emotions settle. Elongate vowels in 'خاطره' or 'گذشته' for Persian nostalgia."},
+        {"name": "محبت‌آمیز", "emoji": "💖", "prompt": "Warm, soft, and tender, with a gentle, caressing quality. Caring, intimate, and heartfelt, like speaking to a loved one. Slow and deliberate pacing, with a soothing rhythm (e.g., 'تو همیشه تو قلبمی...'). Deep affection, warmth, and sincerity. Nurturing and genuine, like a parent or partner expressing love. Gentle pauses after loving phrases to emphasize emotion. Soften words like 'عزیزم' or 'عشق' for a Persian affectionate tone."},
+    ],
+    "voice_styles": [
+        {"name": "داستان‌گونه", "emoji": "📖", "prompt": "Rich, expressive, and immersive, with varied pitch to bring stories to life. Engaging, descriptive, and vivid, painting a picture with words. Moderate pacing, with slows for dramatic moments and speeds for action (e.g., 'و بعد... شمشیرشو بلند کرد!'). Curiosity, excitement, and wonder, drawing listeners into the tale. Storyteller-like, captivating and imaginative. Strategic pauses after key plot points to build anticipation. Emphasize descriptive words like 'ناگهان' or 'ماجرا' for Persian storytelling."},
+        {"name": "محاوره‌ای و خودمونی", "emoji": "😎", "prompt": "Casual, friendly, and natural, like chatting with a friend. Relaxed, approachable, and informal, fostering connection. Moderate pacing, with a conversational flow (e.g., 'خب، حالا چی فکر می‌کنی؟'). Warmth, relatability, and ease. Down-to-earth and buddy-like, making listeners feel at home. Natural pauses, like in real conversation, after questions or jokes. Use slang like 'آره دیگه' or 'خب' for Persian casualness."},
+        {"name": "رسمی و دقیق", "emoji": "🎩", "prompt": "Polished, clear, and authoritative, with steady intonation. Professional, respectful, and precise, like a diplomat speaking. Measured and even pacing, with no rushed phrases (e.g., 'با احترام، عرض می‌کنم...'). Confidence, neutrality, and dignity. Composed and trustworthy, like a professor or official. Brief, purposeful pauses after key points for clarity. Enunciate words like 'محترم' or 'رسمی' for Persian formality."},
+        {"name": "صمیمی و ساده", "emoji": "😄", "prompt": "Light, playful, and unpolished, with a relaxed vibe. Friendly, carefree, and approachable, like joking with friends. Fast and loose pacing, with a spontaneous feel (e.g., 'آره، خیلی باحاله!'). Fun, warmth, and ease. Fun-loving and relatable, like a cool sibling. Minimal pauses, with quick transitions to keep the vibe lively. Use colloquial terms like 'باحال' or 'فاز' for Persian informality."},
+        {"name": "یکنواخت و بی‌حالت", "emoji": "🤖", "prompt": "Flat, unchanging, and robotic, with no pitch variation. Neutral, detached, and emotionless, like reading a manual. Steady and unchanging pacing, with no dynamic shifts (e.g., 'این... اتفاق... افتاد'). None, purely factual and devoid of feeling. Impersonal and mechanical, like a basic AI voice. Even, predictable pauses, like a metronome. Avoid Persian elongations; keep words like 'خب' or 'باشه' flat."},
+        {"name": "نمایشی و پرانرژی", "emoji": "🎭", "prompt": "Dynamic, colorful, and theatrical, with exaggerated pitch shifts. Lively, engaging, and larger-than-life, like a stage performer. Fast and varied pacing, with slows for drama and speeds for excitement (e.g., 'وای، چه ماجرایی!'). Passion, excitement, and flair. Charismatic and captivating, like a show host. Dramatic pauses after big moments to amplify impact. Stretch words like 'عاااالی' or 'باورنکردنییی' for Persian expressiveness."},
+        {"name": "دراماتیک و پرتعلیق", "emoji": "🎬", "prompt": "Intense, resonant, and gripping, with a cinematic quality. Suspenseful, emotional, and theatrical, like a movie trailer voice. Slow and deliberate pacing for tension, with bursts for climaxes (e.g., 'و حالا... سرنوشت چی میشه؟'). Suspense, urgency, and gravitas. Powerful and immersive, like a film narrator. Long, suspenseful pauses before key reveals. Emphasize words like 'سرنوشت' or 'خطر' with Persian drama."},
+        {"name": "خشک و بی‌احساس", "emoji": "😐", "prompt": "Flat, monotone, and understated, with subtle irony. Sarcastic, detached, and humorous in its lack of emotion. Slow and deliberate pacing, with drawn-out words for effect (e.g., 'واااقعاً... خیلی هیجان‌انگیزه'). Subtle amusement or disdain, masked by neutrality. Witty and ironic, like a comedian delivering dry humor. Brief pauses after sarcastic remarks to let the humor land. Use flat intonation for words like 'عجب' or 'جدی' for Persian deadpan."},
+    ],
+    "character_affects": [
+        {"name": "طعنه‌آمیز", "emoji": "🙄", "prompt": "Snarky, exaggerated, and slightly nasal, with a mocking edge. Ironic, passive-aggressive, and biting, like throwing shade. Moderate pacing, with drawn-out words for sarcasm (e.g., 'آآآره، خیلییی مهمه'). Disdain, amusement, and subtle superiority. Sharp-witted and cheeky, like a sassy friend. Pauses after sarcastic remarks to emphasize the jab. Stretch words like 'عجببب' or 'واقعاًآآ' for Persian sarcasm."},
+        {"name": "حماسی", "emoji": "⚔️", "prompt": "Deep, booming, and commanding, with a regal quality. Noble, inspiring, and grand, like a warrior rallying troops. Measured pacing, with slows for emphasis (e.g., 'ما... پیروز خواهیم شد!'). Courage, determination, and glory. Larger-than-life and valiant, like a legendary hero. Long pauses after rallying cries to inspire awe. Emphasize words like 'شجاعت' or 'افتخار' for Persian epicness."},
+        {"name": "مرموز", "emoji": "🕵️", "prompt": "Low, breathy, and elusive, with a hint of intrigue. Cryptic, alluring, and suspenseful, like whispering a secret. Slow and deliberate pacing, with pauses for mystery (e.g., 'شاید... حقیقت دیگه‌ای باشه...'). Intrigue, secrecy, and subtle danger. Enigmatic and captivating, like a shadowy figure. Long, suspenseful pauses to keep listeners guessing. Whisper words like 'راز' or 'پنهان' for Persian mystery."},
+        {"name": "دستوری و قاطع", "emoji": "🛡️", "prompt": "Firm, loud, and authoritative, with a no-nonsense tone. Direct, confident, and unyielding, like issuing orders. Quick and sharp pacing, with clear enunciation (e.g., 'همین حالا انجام بده!'). Strength, control, and urgency. Dominant and resolute, like a military leader. Brief pauses after commands to assert dominance. Stress words like 'برو' or 'باشه' for Persian assertiveness."},
+        {"name": "حکیمانه", "emoji": "🧙", "prompt": "Warm, deep, and measured, with a reflective quality. Thoughtful, profound, and reassuring, like imparting ancient wisdom. Slow and deliberate pacing, with a calm rhythm (e.g., 'زندگی... یعنی صبر...'). Serenity, insight, and compassion. Gentle and all-knowing, like a mentor or elder. Long pauses after profound statements to invite reflection. Soften words like 'حکمت' or 'راه' for Persian wisdom."},
+        {"name": "کودکانه", "emoji": "🧸", "prompt": "High-pitched, bubbly, and playful, with a sing-song quality. Curious, naive, and joyful, like a child discovering the world. Fast and erratic pacing, with excited bursts (e.g., 'وای، این چیه؟ خیلی قشنگه!'). Wonder, innocence, and delight. Adorable and endearing, like a curious kid. Short, excited pauses after questions or discoveries. Use playful words like 'ووووی' or 'قشنگه' for Persian childlikeness."},
+        {"name": "شیطانی", "emoji": "😈", "prompt": "Low, raspy, and menacing, with a chilling edge. Dark, malicious, and threatening, like a villain plotting. Slow and deliberate pacing, with sudden sharp rises for menace (e.g., 'تو... نمی‌تونی فرار کنی...'). Cruelty, menace, and cold amusement. Sinister and intimidating, like a diabolical mastermind. Long, eerie pauses to amplify fear. Hiss words like 'خطر' or 'نابودی' for Persian villainy."},
+        {"name": "کلاسیک و قدیمی", "emoji": "📜", "prompt": "Deep, formal, and slightly nasal, with an antique charm. Grand, reverent, and formal, like reciting ancient poetry. Slow and deliberate pacing, with emphasis on archaic terms (e.g., 'ای یار... بشنو سخنم...'). Nostalgia, dignity, and solemnity. Stately and wise, like a bard from centuries past. Pauses after poetic phrases to add weight. Use old Persian words like 'یار' or 'سخن' with reverence."},
+        {"name": "فریبنده و وسوسه‌انگیز", "emoji": "💋", "prompt": "Sultry, smooth, and breathy, with a teasing quality. Sensual, inviting, and flirtatious, like whispering sweet nothings. Slow and languid pacing, with drawn-out words (e.g., 'بیااا... نزدیک‌تر...'). Desire, charm, and subtle power. Magnetic and irresistible, like a charismatic seducer. Long, teasing pauses to draw listeners in. Soften words like 'عشق' or 'دل' for Persian allure."},
+        {"name": "خسته و بی‌حال", "emoji": "😴", "prompt": "Sluggish, low, and breathy, with a yawning quality. Apathetic, unmotivated, and half-hearted, like someone too tired to care. Slow and dragging pacing, with drawn-out words (e.g., 'آآآآه... حالا چی؟'). Exhaustion, boredom, and reluctance. Lethargic and indifferent, like a slacker. Long, lazy pauses, as if too tired to continue. Stretch words like 'خسته‌م' or 'بی‌حال' for Persian laziness."},
+    ],
+    "functional": [
+        {"name": "آموزشی", "emoji": "📚", "prompt": "Clear, steady, and articulate, with a teacherly tone. Informative, patient, and structured, like guiding a student. Moderate pacing, with pauses for comprehension (e.g., 'اول... این کارو بکن...'). Clarity, encouragement, and focus. Knowledgeable and supportive, like a mentor. Brief pauses after steps or key points for clarity. Enunciate words like 'گام' or 'یاد' for Persian instruction."},
+        {"name": "انگیزشی", "emoji": "🚀", "prompt": "Uplifting, passionate, and resonant, with rising intonation. Empowering, enthusiastic, and rallying, like a coach inspiring a team. Moderate pacing, with speeds for excitement and slows for emphasis (e.g., 'تو می‌تونی... باور کن!'). Passion, determination, and hope. Charismatic and encouraging, like a life coach. Pauses after motivational phrases to inspire action. Stress words like 'باور' or 'موفقیت' for Persian motivation."},
+        {"name": "تبلیغاتی و قانع‌کننده", "emoji": "💸", "prompt": "Smooth, confident, and enthusiastic, with a persuasive edge. Convincing, engaging, and slightly urgent, like a top salesperson. Fast and dynamic pacing, with slows for key benefits (e.g., 'فقط امروز... این فرصت رو از دست نده!'). Excitement, confidence, and urgency. Charismatic and trustworthy, like a slick advertiser. Brief pauses after selling points to drive home value. Emphasize words like 'فرصت' or 'ویژه' for Persian persuasion."},
+        {"name": "خبری", "emoji": "📰", "prompt": "Clear, neutral, and professional, with a broadcast quality. Objective, concise, and authoritative, like delivering breaking news. Steady and brisk pacing, with clear enunciation (e.g., 'امروز... حادثه‌ای رخ داد...'). Neutrality, with subtle urgency for big stories. Credible and composed, like a news anchor. Brief, professional pauses between segments or facts. Use formal words like 'گزارش' or 'اخبار' for Persian news style."},
+        {"name": "مستند", "emoji": "🎥", "prompt": "Warm, articulate, and engaging, with a storytelling quality. Informative, curious, and slightly dramatic, like narrating a nature film. Moderate pacing, with slows for emphasis (e.g., 'این موجود... قرن‌هاست که زنده‌ست...'). Wonder, respect, and curiosity. Knowledgeable and immersive, like a documentary host. Pauses after fascinating facts to let them sink in. Emphasize words like 'جهان' or 'کشف' for Persian documentary style."},
+        {"name": "مراقبه‌ای و معنوی", "emoji": "🕉️", "prompt": "Soft, breathy, and hypnotic, with a soothing cadence. Serene, introspective, and transcendent, like guiding a meditation. Very slow pacing, with long, flowing phrases (e.g., 'نفس بکش... و آرام شو...'). Peace, spirituality, and connection. Gentle and otherworldly, like a spiritual guide. Long, calming pauses to mimic deep breathing. Soften words like 'آرامش' or 'روح' for Persian spirituality."},
+        {"name": "بحث‌برانگیز و منطقی", "emoji": "⚖️", "prompt": "Sharp, confident, and assertive, with a debating edge. Logical, intense, and persuasive, like arguing a point. Fast and precise pacing, with slows for key arguments (e.g., 'این... دلیل اصلی ماست!'). Passion, conviction, and urgency. Articulate and competitive, like a debater. Brief pauses after strong points to emphasize logic. Stress words like 'دلیل' or 'حقیقت' for Persian argumentation."},
+    ]
 }
 
 # ایجاد اپلیکیشن FastAPI
@@ -217,7 +122,6 @@ def call_api(prompt, image=None):
         raw_response = response.text
         logger.info(f"پاسخ خام API: {raw_response[:500]}...")
         
-        # مستقیماً از پاسخ متنی استفاده می‌کنیم
         if raw_response.strip():
             return raw_response
         else:
@@ -233,8 +137,14 @@ def call_api(prompt, image=None):
 def process_image(image_data):
     return Image.open(io.BytesIO(image_data))
 
-def generate_audio(text, instructions, output_file):
-    logger.info(f"تولید صدا با متن: {text[:50]}..., حس: {instructions[:50]}...")
+def generate_audio(text, instructions, voice, output_file, audio_format="mp3"):
+    logger.info(f"تولید صدا با متن: {text[:50]}..., حس: {instructions[:50]}..., صدا: {voice}, فرمت: {audio_format}")
+    if voice not in SUPPORTED_VOICES:
+        logger.error(f"صدا {voice} پشتیبانی نمی‌شود")
+        return False
+    if audio_format not in SUPPORTED_FORMATS:
+        logger.error(f"فرمت {audio_format} پشتیبانی نمی‌شود")
+        return False
     
     prompt = (
         f"Deliver the following text with the feeling described below:\n"
@@ -245,15 +155,24 @@ def generate_audio(text, instructions, output_file):
     
     base_url = "https://text.pollinations.ai/"
     encoded_prompt = urllib.parse.quote(prompt)
-    url = f"{base_url}{encoded_prompt}"
+    url = f"{base_url}{encoded_prompt}?model=openai-audio&voice={voice}"
     
     try:
         logger.info(f"ارسال درخواست GET به API: {url[:100]}...")
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
-            with open(output_file, "wb") as f:
+            temp_file = f"temp_{uuid4()}.mp3"
+            with open(temp_file, "wb") as f:
                 f.write(response.content)
-            logger.info(f"فایل صوتی ذخیره شد: {output_file}")
+            logger.info(f"فایل صوتی موقت ذخیره شد: {temp_file}")
+            
+            # تبدیل فرمت با pydub
+            audio = AudioSegment.from_file(temp_file)
+            audio.export(output_file, format=audio_format)
+            logger.info(f"فایل صوتی با فرمت {audio_format} ذخیره شد: {output_file}")
+            
+            # حذف فایل موقت
+            os.remove(temp_file)
             return True
         else:
             logger.error(f"خطا در API Pollinations: کد وضعیت {response.status_code}, پاسخ: {response.text}")
@@ -262,7 +181,7 @@ def generate_audio(text, instructions, output_file):
         logger.error(f"خطا در ارتباط با API Pollinations: {str(e)}")
         return False
     except IOError as e:
-        logger.error(f"خطا در ذخیره فایل صوتی: {str(e)}")
+        logger.error(f"خطا در ذخیره یا تبدیل فایل صوتی: {str(e)}")
         return False
     except Exception as e:
         logger.error(f"خطای غیرمنتظره در تولید صدا: {str(e)}")
@@ -278,178 +197,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logger.info(f"دریافت دستور /start از کاربر: {user_id}")
     try:
-        keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"]]
+        keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
             "🎙 به ربات تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
-            "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+            "من می‌توانم متن شما را با هر حس و صدایی که انتخاب کنید، به گفتار تبدیل کنم یا به‌عنوان دستیار هوشمند به سوالات شما پاسخ دهم.\n"
+            "برای شروع، یکی از دکمه‌های زیر را انتخاب کنید:",
             reply_markup=reply_markup
         )
-        context.user_data["state"] = "home"
+        context.user_data.clear()
+        context.user_data["state"] = "main"
     except Exception as e:
         logger.error(f"خطا در ارسال پاسخ /start برای کاربر {user_id}: {str(e)}")
-    return None
-
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = update.message.text
-
-    if "state" not in context.user_data:
-        context.user_data["state"] = "home"
-
-    if text == "🔙 برگشت":
-        if context.user_data["state"] in ["tone_category", "manual_tone", "select_tone", "text_input"]:
-            keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"]]
-            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            await update.message.reply_text(
-                "به صفحه اصلی بازگشتید. لطفاً یک گزینه انتخاب کنید:",
-                reply_markup=reply_markup
-            )
-            context.user_data["state"] = "home"
-        elif context.user_data["state"] == "assistant":
-            keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"]]
-            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            await update.message.reply_text(
-                "به صفحه اصلی بازگشتید. لطفاً یک گزینه انتخاب کنید:",
-                reply_markup=reply_markup
-            )
-            context.user_data["state"] = "home"
-        return None
-
-    if context.user_data["state"] == "home":
-        if text == "🎙 تبدیل متن به صدا":
-            try:
-                keyboard = [
-                    ["لحن و صدا دستی"],
-                    ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
-                    ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
-                    ["🔙 برگشت"]
-                ]
-                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-                await update.message.reply_text(
-                    "شما به بخش انتخاب لحن و حس منتقل شدید!\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
-                    reply_markup=reply_markup
-                )
-                context.user_data["state"] = "tone_category"
-                return None
-            except Exception as e:
-                logger.error(f"خطا در ارسال پیام برای انتخاب لحن: {str(e)}")
-                return None
-        elif text == "🤖 دستیار هوشمند":
-            try:
-                keyboard = [["🔙 برگشت"]]
-                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-                await update.message.reply_text(
-                    "سلام! من ربات دستیار متن به صدا هستم. متن یا تصویر بفرستید تا به شما کمک کنم!",
-                    reply_markup=reply_markup
-                )
-                context.user_data["state"] = "assistant"
-                return None
-            except Exception as e:
-                logger.error(f"خطا در ارسال پیام برای دستیار هوشمند: {str(e)}")
-                return None
-
-    elif context.user_data["state"] == "tone_category":
-        if text == "لحن و صدا دستی":
-            await update.message.reply_text(
-                "لطفاً حس یا دستورالعمل‌های صدا را وارد کنید (حداکثر 500 کاراکتر).\n"
-                "مثال: Dramatic یا Gruff, fast-talking, New York accent",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
-            context.user_data["state"] = "manual_tone"
-            return None
-        elif text in ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی", "🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"]:
-            category = {
-                "📢 لحن‌های کاربردی": "functional",
-                "👑 لحن‌های نمایشی / شخصیتی": "character_affects",
-                "🎤 لحن‌های گفتاری": "voice_styles",
-                "🎭 لحن‌های احساسی": "emotional"
-            }[text]
-            context.user_data["tone_category"] = category
-            
-            tones = TONES[category]
-            keyboard = []
-            row = []
-            for tone_id, tone_data in tones.items():
-                row.append(tone_data["name"])
-                if len(row) == 2:
-                    keyboard.append(row)
-                    row = []
-            if row:
-                keyboard.append(row)
-            keyboard.append(["🔙 برگشت"])
-            
-            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            await update.message.reply_text(
-                f"لطفاً یکی از {text} را انتخاب کنید:",
-                reply_markup=reply_markup
-            )
-            context.user_data["state"] = "select_tone"
-            return None
-
-    elif context.user_data["state"] == "select_tone":
-        category = context.user_data["tone_category"]
-        tones = TONES[category]
-        selected_tone = None
-        for tone_id, tone_data in tones.items():
-            if tone_data["name"] == text:
-                selected_tone = tone_id
-                context.user_data["feeling"] = tone_data["prompt"]
-                break
-        
-        if selected_tone:
-            context.user_data["state"] = "text_input"
-            await update.message.reply_text(
-                "حالا متن موردنظر برای تبدیل به صدا را وارد کنید (حداکثر 1000 کاراکتر).\n"
-                "مثال: Yeah, yeah, ya got Big Apple Insurance",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
-        else:
-            await update.message.reply_text(
-                "لطفاً یک لحن معتبر انتخاب کنید.",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
-        return None
-
-    elif context.user_data["state"] == "manual_tone":
-        feeling = text
-        if len(feeling) > 500:
-            await update.message.reply_text(
-                f"خطا: حس شما {len(feeling)} کاراکتر است. لطفاً حسی با حداکثر 500 کاراکتر وارد کنید.",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
-            return None
-        
-        context.user_data["feeling"] = feeling
-        context.user_data["state"] = "text_input"
-        await update.message.reply_text(
-            "حالا متن موردنظر برای تبدیل به صدا را وارد کنید (حداکثر 1000 کاراکتر).\n"
-            "مثال: Yeah, yeah, ya got Big Apple Insurance",
-            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-        )
-        return None
-
-    elif context.user_data["state"] == "text_input":
-        text = text
-        if len(text) > MAX_TEXT_LENGTH:
-            await update.message.reply_text(
-                f"خطا: متن شما {len(text)} کاراکتر است. لطفاً متنی با حداکثر {MAX_TEXT_LENGTH} کاراکتر وارد کنید.",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
-            return None
-        
-        context.user_data["text"] = text
-        await generate_audio_response(update, context)
-        return None
-
-    elif context.user_data["state"] == "assistant":
-        response = call_api(text)
-        await update.message.reply_text(
-            response,
-            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-        )
-        return None
-
     return None
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -481,86 +240,448 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     return None
 
-async def generate_audio_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    text = context.user_data["text"]
-    instructions = context.user_data["feeling"]
-    output_file = f"output_{uuid4()}.mp3"
+    text = update.message.text
 
-    try:
-        status_message = await update.message.reply_text("در حال آنالیز متن 🔍")
-        await asyncio.sleep(1.5)
-        await status_message.edit_text("درحال تولید صدا 🎙")
+    # مدیریت دکمه برگشت
+    if text == "🔙 برگشت":
+        current_state = context.user_data.get("state", "main")
+        previous_state = context.user_data.get("previous_state", "main")
         
-        progress_duration = 4
-        step_duration = progress_duration / 20
-        
-        for percentage in range(0, 101, 5):
-            try:
-                await status_message.edit_text(
-                    f"درحال تولید صدا 🎙\n{create_progress_bar(percentage)}"
-                )
-            except Exception as e:
-                logger.error(f"خطا در به‌روزرسانی پروگرس بار ({percentage}%) برای کاربر {user_id}: {str(e)}")
-            await asyncio.sleep(step_duration)
-        
-        await status_message.edit_text("تولید صدا در حال انجام است...")
-        
-    except Exception as e:
-        logger.error(f"خطا در ارسال یا به‌روزرسانی پیام وضعیت برای کاربر {user_id}: {str(e)}")
-        await update.message.reply_text(
-            "خطا در شروع تولید صدا. لطفاً دوباره امتحان کنید.",
-            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-        )
-        return None
-    
-    success = generate_audio(text, instructions, output_file)
-    
-    if success:
-        try:
-            with open(output_file, "rb") as audio:
-                await update.message.reply_audio(
-                    audio=audio,
-                    caption="صدا تولید شد!",
-                    title="Generated Audio"
-                )
-            os.remove(output_file)
-            logger.info(f"فایل صوتی ارسال و حذف شد برای کاربر {user_id}: {output_file}")
-            
-            await status_message.edit_text(
-                "✅ فایل صوتی با موفقیت ارسال شد! برای تولید دوباره، روی دکمه تبدیل متن به صدا کلیک کنید."
+        if current_state == "main":
+            await update.message.reply_text(
+                "شما در صفحه اصلی هستید!",
+                reply_markup=ReplyKeyboardMarkup([["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]], resize_keyboard=True)
             )
-                
+            return None
+        
+        if previous_state == "main" or current_state == "assistant":
+            return await start(update, context)
+        
+        if previous_state == "select_tone_category":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if previous_state == "select_tone":
+            category = context.user_data.get("selected_category")
+            tones = TONES[category]
+            keyboard = []
+            for i in range(0, len(tones), 2):
+                row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                if i + 1 < len(tones):
+                    row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            category_names = {
+                "emotional": "لحن‌های احساسی",
+                "voice_styles": "لحن‌های گفتاری",
+                "character_affects": "لحن‌های نمایشی / شخصیتی",
+                "functional": "لحن‌های کاربردی"
+            }
+            await update.message.reply_text(
+                f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone"
+            context.user_data["previous_state"] = "select_tone_category"
+            return None
+        
+        if previous_state == "manual_feeling":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if previous_state == "text":
+            if context.user_data.get("feeling_manual", False):
+                await update.message.reply_text(
+                    "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
+                    "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                context.user_data["state"] = "manual_feeling"
+                context.user_data["previous_state"] = "select_tone_category"
+            else:
+                category = context.user_data.get("selected_category")
+                tones = TONES[category]
+                keyboard = []
+                for i in range(0, len(tones), 2):
+                    row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                    if i + 1 < len(tones):
+                        row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                category_names = {
+                    "emotional": "لحن‌های احساسی",
+                    "voice_styles": "لحن‌های گفتاری",
+                    "character_affects": "لحن‌های نمایشی / شخصیتی",
+                    "functional": "لحن‌های کاربردی"
+                }
+                await update.message.reply_text(
+                    f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                    reply_markup=reply_markup
+                )
+                context.user_data["state"] = "select_tone"
+                context.user_data["previous_state"] = "select_tone_category"
+            return None
+        
+        if previous_state == "voice":
+            await update.message.reply_text(
+                "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
+                "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            context.user_data["state"] = "text"
+            context.user_data["previous_state"] = "select_tone" if not context.user_data.get("feeling_manual", False) else "manual_feeling"
+            return None
+        
+        if previous_state == "select_format":
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                row.append(voice.capitalize())
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "voice"
+            context.user_data["previous_state"] = "text"
+            return None
+
+    if text == "🎙 تبدیل متن به صدا":
+        try:
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
         except Exception as e:
-            logger.error(f"خطا در ارسال فایل صوتی برای کاربر {user_id}: {str(e)}")
-            try:
-                await status_message.edit_text(
-                    "❌ خطا در ارسال فایل صوتی. لطفاً دوباره امتحان کنید."
-                )
-            except Exception:
-                logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
-        finally:
-            try:
-                if os.path.exists(output_file):
-                    os.remove(output_file)
-            except Exception:
-                logger.warning(f"ناتوانی در حذف فایل صوتی برای کاربر {user_id}: {output_file}")
-    else:
+            logger.error(f"خطا در نمایش منوی لحن‌ها برای کاربر {user_id}: {str(e)}")
+            return None
+
+    if text == "🤖 دستیار هوشمند":
         try:
-            await status_message.edit_text(
-                "❌ خطا در تولید صدا. لطفاً مطمئن شوید حس (حداکثر 500 کاراکتر) و متن (حداکثر 1000 کاراکتر) مناسب هستند."
+            keyboard = [["🔙 برگشت"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "سلام! من ربات دستیار متن به صدا هستم. متن یا تصویر بفرستید تا به شما کمک کنم!",
+                reply_markup=reply_markup
             )
-        except Exception:
-            logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
+            context.user_data["state"] = "assistant"
+            context.user_data["previous_state"] = "main"
+            return None
+        except Exception as e:
+            logger.error(f"خطا در ارسال پیام برای دستیار هوشمند برای کاربر {user_id}: {str(e)}")
+            return None
+
+    if "state" in context.user_data:
+        # انتخاب دسته‌بندی لحن
+        if context.user_data["state"] == "select_tone_category":
+            category_map = {
+                "✍️ لحن و حس دستی": "manual_feeling",
+                "📢 لحن‌های کاربردی": "functional",
+                "👑 لحن‌های نمایشی / شخصیتی": "character_affects",
+                "🎤 لحن‌های گفتاری": "voice_styles",
+                "🎭 لحن‌های احساسی": "emotional"
+            }
+            if text in category_map:
+                if text == "✍️ لحن و حس دستی":
+                    context.user_data["state"] = "manual_feeling"
+                    context.user_data["previous_state"] = "select_tone_category"
+                    context.user_data["feeling_manual"] = True
+                    await update.message.reply_text(
+                        "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
+                        "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    )
+                    return None
+                else:
+                    category = category_map[text]
+                    tones = TONES[category]
+                    keyboard = []
+                    for i in range(0, len(tones), 2):
+                        row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                        if i + 1 < len(tones):
+                            row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                        keyboard.append(row)
+                    keyboard.append(["🔙 برگشت"])
+                    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                    category_names = {
+                        "emotional": "لحن‌های احساسی",
+                        "voice_styles": "لحن‌های گفتاری",
+                        "character_affects": "لحن‌های نمایشی / شخصیتی",
+                        "functional": "لحن‌های کاربردی"
+                    }
+                    await update.message.reply_text(
+                        f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                        reply_markup=reply_markup
+                    )
+                    context.user_data["state"] = "select_tone"
+                    context.user_data["previous_state"] = "select_tone_category"
+                    context.user_data["selected_category"] = category
+                    return None
+
+        # انتخاب حس
+        elif context.user_data["state"] == "select_tone":
+            category = context.user_data.get("selected_category")
+            tones = TONES[category]
+            tone_name = text
+            for tone in tones:
+                if f"{tone['emoji']} {tone['name']}" == text:
+                    tone_name = tone["name"]
+                    context.user_data["feeling"] = tone["prompt"]
+                    context.user_data["feeling_name"] = tone_name
+                    context.user_data["state"] = "text"
+                    context.user_data["previous_state"] = "select_tone"
+                    context.user_data["feeling_manual"] = False
+                    await update.message.reply_text(
+                        "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
+                        "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    )
+                    return None
+            await update.message.reply_text(
+                "لطفاً یک حس معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+
+        # دریافت حس دستی
+        elif context.user_data["state"] == "manual_feeling":
+            feeling = text
+            if len(feeling) > MAX_FEELING_LENGTH:
+                await update.message.reply_text(
+                    f"خطا: حس شما {len(feeling)} کاراکتر است. لطفاً حسی با حداکثر {MAX_FEELING_LENGTH} کاراکتر وارد کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            context.user_data["feeling"] = feeling
+            context.user_data["feeling_name"] = "دستی"
+            context.user_data["state"] = "text"
+            context.user_data["previous_state"] = "manual_feeling"
+            await update.message.reply_text(
+                "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
+                "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+        
+        # دریافت متن
+        elif context.user_data["state"] == "text":
+            if len(text) > MAX_TEXT_LENGTH:
+                await update.message.reply_text(
+                    f"خطا: متن شما {len(text)} کاراکتر است. لطفاً متنی با حداکثر {MAX_TEXT_LENGTH} کاراکتر وارد کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            context.user_data["text"] = text
+            context.user_data["state"] = "voice"
+            context.user_data["previous_state"] = "text"
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                row.append(voice.capitalize())
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            return None
+        
+        # دریافت صدا
+        elif context.user_data["state"] == "voice":
+            voice = text.lower()
+            if voice not in SUPPORTED_VOICES:
+                await update.message.reply_text(
+                    "لطفاً یک صدای معتبر از لیست انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            context.user_data["voice"] = voice
+            context.user_data["state"] = "select_format"
+            context.user_data["previous_state"] = "voice"
+            keyboard = [["MP3", "WAV", "OGG"], ["🔙 برگشت"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً فرمت صوتی موردنظر را انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            return None
+        
+        # انتخاب فرمت صوتی
+        elif context.user_data["state"] == "select_format":
+            audio_format = text.lower()
+            if audio_format not in SUPPORTED_FORMATS:
+                await update.message.reply_text(
+                    "لطفاً یک فرمت معتبر (MP3، WAV، OGG) انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["MP3", "WAV", "OGG"], ["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            text = context.user_data["text"]
+            instructions = context.user_data["feeling"]
+            voice = context.user_data["voice"]
+            feeling_name = context.user_data["feeling_name"]
+            output_file = f"output_{uuid4()}.{audio_format}"
+            
+            try:
+                status_message = await update.message.reply_text("در حال آنالیز متن 🔍")
+                await asyncio.sleep(1.5)
+                await status_message.edit_text("درحال تولید صدا 🎙")
+                
+                progress_duration = 4
+                step_duration = progress_duration / 20
+                for percentage in range(0, 101, 5):
+                    try:
+                        await status_message.edit_text(
+                            f"درحال تولید صدا 🎙\n{create_progress_bar(percentage)}"
+                        )
+                    except Exception as e:
+                        logger.error(f"خطا در به‌روزرسانی پروگرس بار ({percentage}%) برای کاربر {user_id}: {str(e)}")
+                    await asyncio.sleep(step_duration)
+                
+                await status_message.edit_text("تولید صدا در حال انجام است...")
+                
+            except Exception as e:
+                logger.error(f"خطا در ارسال یا به‌روزرسانی پیام وضعیت برای کاربر {user_id}: {str(e)}")
+                await update.message.reply_text(
+                    "خطا در شروع تولید صدا. لطفاً دوباره امتحان کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            
+            success = generate_audio(text, instructions, voice, output_file, audio_format)
+            
+            if success:
+                try:
+                    with open(output_file, "rb") as audio:
+                        await update.message.reply_audio(
+                            audio=audio,
+                            caption=f"🎙 گوینده : {voice.capitalize()}\n🎼 حس صوت : {feeling_name}",
+                            title="Generated Audio",
+                            reply_markup=ReplyKeyboardRemove()
+                        )
+                    os.remove(output_file)
+                    logger.info(f"فایل صوتی ارسال و حذف شد برای کاربر {user_id}: {output_file}")
+                    
+                    await status_message.edit_text(
+                        "✅ فایل صوتی با موفقیت ارسال شد! برای تولید دوباره، روی دکمه تبدیل متن به صدا کلیک کنید."
+                    )
+                    
+                    # بازگشت به صفحه اصلی
+                    keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
+                    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                    await update.message.reply_text(
+                        "🎙 به ربات تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
+                        "برای تولید صدای جدید یا استفاده از دستیار هوشمند، یکی از دکمه‌های زیر را انتخاب کنید:",
+                        reply_markup=reply_markup
+                    )
+                    context.user_data.clear()
+                    context.user_data["state"] = "main"
+                        
+                except Exception as e:
+                    logger.error(f"خطا در ارسال فایل صوتی برای کاربر {user_id}: {str(e)}")
+                    try:
+                        await status_message.edit_text(
+                            "❌ خطا در ارسال فایل صوتی. لطفاً دوباره امتحان کنید."
+                        )
+                    except Exception:
+                        logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
+                finally:
+                    try:
+                        if os.path.exists(output_file):
+                            os.remove(output_file)
+                    except Exception:
+                        logger.warning(f"ناتوانی در حذف فایل صوتی برای کاربر {user_id}: {output_file}")
+            else:
+                try:
+                    await status_message.edit_text(
+                        "❌ خطا در تولید صدا. لطفاً مطمئن شوید حس (حداکثر 500 کاراکتر) و متن (حداکثر 1000 کاراکتر) مناسب هستند و صدا پشتیبانی می‌شود."
+                    )
+                except Exception:
+                    logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
+            
+            return None
+        
+        # دستیار هوشمند
+        elif context.user_data["state"] == "assistant":
+            response = call_api(text)
+            await update.message.reply_text(
+                response,
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
     
-    context.user_data.clear()
-    context.user_data["state"] = "home"
-    keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    await update.message.reply_text(
-        "به صفحه اصلی بازگشتید. لطفاً یک گزینه انتخاب کنید:",
-        reply_markup=reply_markup
-    )
+    return None
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    logger.info(f"دریافت دستور /cancel از کاربر: {user_id}")
+    try:
+        await update.message.reply_text(
+            "عملیات لغو شد. با /start می‌تونید دوباره شروع کنید.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        context.user_data.clear()
+        context.user_data["state"] = "main"
+        keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await update.message.reply_text(
+            "🎙 به ربات تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
+            "برای تولید صدای جدید یا استفاده از دستیار هوشمند، یکی از دکمه‌های زیر را انتخاب کنید:",
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        logger.error(f"خطا در ارسال پاسخ /cancel برای کاربر {user_id}: {str(e)}")
     return None
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -571,14 +692,13 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
 
-# تنظیم ربات
 application = Application.builder().token(TOKEN).read_timeout(60).write_timeout(60).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+application.add_handler(CommandHandler("cancel", cancel))
 application.add_error_handler(error_handler)
 
-# تعریف endpoint برای webhook
 @app.post("/webhook")
 async def webhook(request: Request):
     try:
