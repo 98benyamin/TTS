@@ -2,12 +2,11 @@ import requests
 import urllib.parse
 import os
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
     filters,
     ContextTypes,
 )
@@ -100,7 +99,7 @@ TONES = {
         },
         "animated": {
             "name": "نمایشی و پرانرژی 🎭",
-            "prompt": "NSNotification: Dynamic, colorful, and theatrical, with exaggerated pitch shifts. Lively and engaging, fast and varied pacing, dramatic pauses, stretching words like 'عاااالی' or 'باورنکردنییی'."
+            "prompt": "Dynamic, colorful, and theatrical, with exaggerated pitch shifts. Lively and engaging, fast and varied pacing, dramatic pauses, stretching words like 'عاااالی' or 'باورنکردنییی'."
         },
         "dramatic": {
             "name": "دراماتیک و پرتعلیق 🎬",
@@ -201,18 +200,35 @@ def call_api(prompt, image=None):
     }
 
     if image:
-        buffered = io.BytesIO()
-        image.save(buffered, format="JPEG")
-        image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        payload["messages"].append({"role": "user", "content": {"image": image_base64}})
+        try:
+            buffered = io.BytesIO()
+            image.save(buffered, format="JPEG")
+            image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            payload["messages"].append({"role": "user", "content": {"image": image_base64}})
+        except Exception as e:
+            logger.error(f"خطا در پردازش تصویر برای API: {str(e)}")
+            return "خطا در پردازش تصویر."
 
     try:
-        response = requests.post(API_URL, json=payload, headers=headers)
+        logger.info(f"ارسال درخواست به API: {API_URL}, payload: {payload}")
+        response = requests.post(API_URL, json=payload, headers=headers, timeout=30)
         response.raise_for_status()
-        return response.json().get("response", "پاسخی دریافت نشد.")
+        
+        raw_response = response.text
+        logger.info(f"پاسخ خام API: {raw_response[:500]}...")
+        
+        try:
+            json_response = response.json()
+            return json_response.get("response", "پاسخی دریافت نشد.")
+        except ValueError as e:
+            logger.error(f"پاسخ API JSON معتبر نیست: {raw_response[:500]}..., خطا: {str(e)}")
+            return "متأسفانه دستیار هوشمند در حال حاضر قادر به پاسخگویی نیست. لطفاً بعداً امتحان کنید."
+    except requests.RequestException as e:
+        logger.error(f"خطا در ارتباط با API: {str(e)}")
+        return "خطا در ارتباط با API. لطفاً دوباره امتحان کنید."
     except Exception as e:
-        logger.error(f"API error: {e}")
-        return f"خطا در ارتباط با API: {e}"
+        logger.error(f"خطای غیرمنتظره در API: {str(e)}")
+        return "خطای غیرمنتظره رخ داد. لطفاً دوباره امتحان کنید."
 
 # تابع برای پردازش تصویر
 def process_image(image_data):
@@ -284,7 +300,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "🔙 برگشت":
         if context.user_data["state"] in ["tone_category", "manual_tone", "select_tone", "text_input"]:
-            # بازگشت به صفحه خانه
             keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"]]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
@@ -293,7 +308,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             context.user_data["state"] = "home"
         elif context.user_data["state"] == "assistant":
-            # بازگشت به صفحه خانه از دستیار هوشمند
             keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"]]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
@@ -358,20 +372,45 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = []
             row = []
             for tone_id, tone_data in tones.items():
-                row.append(InlineKeyboardButton(tone_data["name"], callback_data=f"tone_{category}_{tone_id}"))
+                row.append(tone_data["name"])
                 if len(row) == 2:
                     keyboard.append(row)
                     row = []
             if row:
                 keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
             
-            reply_markup = InlineKeyboardMarkup(keyboard)
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
                 f"لطفاً یکی از {text} را انتخاب کنید:",
                 reply_markup=reply_markup
             )
             context.user_data["state"] = "select_tone"
             return None
+
+    elif context.user_data["state"] == "select_tone":
+        category = context.user_data["tone_category"]
+        tones = TONES[category]
+        selected_tone = None
+        for tone_id, tone_data in tones.items():
+            if tone_data["name"] == text:
+                selected_tone = tone_id
+                context.user_data["feeling"] = tone_data["prompt"]
+                break
+        
+        if selected_tone:
+            context.user_data["state"] = "text_input"
+            await update.message.reply_text(
+                "حالا متن موردنظر برای تبدیل به صدا را وارد کنید (حداکثر 1000 کاراکتر).\n"
+                "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+        else:
+            await update.message.reply_text(
+                "لطفاً یک لحن معتبر انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+        return None
 
     elif context.user_data["state"] == "manual_tone":
         feeling = text
@@ -425,6 +464,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     photo = update.message.photo[-1]
     try:
+        logger.info(f"پردازش تصویر از کاربر {user_id}")
         photo_file = await photo.get_file()
         image_data = await photo_file.download_as_bytearray()
         image = process_image(image_data)
@@ -435,33 +475,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
     except Exception as e:
-        logger.error(f"Error processing image for user {user_id}: {e}")
+        logger.error(f"خطا در پردازش تصویر برای کاربر {user_id}: {str(e)}")
         await update.message.reply_text(
             "مشکلی در پردازش تصویر پیش آمد. لطفاً دوباره امتحان کنید.",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
-    return None
-
-async def receive_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = update.effective_user.id
-    data = query.data
-    logger.info(f"دریافت داده از کاربر {user_id}: {data}")
-
-    if data.startswith("tone_"):
-        _, category, tone_id = data.split("_")
-        contextPanasonic: context.user_data["feeling"] = TONES[category][tone_id]["prompt"]
-        context.user_data["state"] = "text_input"
-        
-        await query.message.reply_text(
-            "حالا متن موردنظر برای تبدیل به صدا را وارد کنید (حداکثر 1000 کاراکتر).\n"
-            "مثال: Yeah, yeah, ya got Big Apple Insurance",
-            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-        )
-        return None
-
     return None
 
 async def generate_audio_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -480,11 +498,8 @@ async def generate_audio_response(update: Update, context: ContextTypes.DEFAULT_
         
         for percentage in range(0, 101, 5):
             try:
-                keyboard = [[InlineKeyboardButton(f"{create_progress_bar(percentage)}", callback_data="progress")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
                 await status_message.edit_text(
-                    "درحال تولید صدا 🎙",
-                    reply_markup=reply_markup
+                    f"درحال تولید صدا 🎙\n{create_progress_bar(percentage)}"
                 )
             except Exception as e:
                 logger.error(f"خطا در به‌روزرسانی پروگرس بار ({percentage}%) برای کاربر {user_id}: {str(e)}")
@@ -562,7 +577,6 @@ application = Application.builder().token(TOKEN).read_timeout(60).write_timeout(
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-application.add_handler(CallbackQueryHandler(receive_voice))
 application.add_error_handler(error_handler)
 
 # تعریف endpoint برای webhook
