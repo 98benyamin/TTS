@@ -14,6 +14,7 @@ from telegram.ext import (
 )
 from uuid import uuid4
 import logging
+from aiohttp import web
 
 # تنظیم لاگینگ برای دیباگ
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # تنظیمات ربات
 TOKEN = "7574303416:AAHbsLyKNKYP5VA3UA1FIVGFGNpUae2RiqY"
+WEBHOOK_URL = "https://tts-qroo.onrender.com/webhook"
 MAX_TEXT_LENGTH = 1000  # حداکثر طول متن
 MAX_FEELING_LENGTH = 500  # حداکثر طول حس
 
@@ -178,7 +180,7 @@ async def receive_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         for percentage in range(0, 101, 5):
             try:
-                keyboard = [[InlineKeyboardButton(f"🔄 {create_progress_bar(percentage)}", callback_data="progress")]]
+                keyboard = [[InlineKeyboardButton(f"{create_progress_bar(percentage)}", callback_data="progress")]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await status_message.edit_text(
                     "درحال تولید صدا 🎙",
@@ -253,21 +255,45 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     return ConversationHandler.END
 
+# تنظیم سرور Webhook
+async def webhook_handler(request):
+    try:
+        update = Update.de_json(await request.json(), application.bot)
+        await application.process_update(update)
+        return web.Response()
+    except Exception as e:
+        logger.error(f"خطا در پردازش درخواست webhook: {str(e)}")
+        return web.Response(status=500)
+
+async def setup_webhook():
+    try:
+        app = web.Application()
+        app.router.add_post('/webhook', webhook_handler)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', 8080)  # پورت 8080 برای Render
+        await site.start()
+        logger.info("سرور Webhook شروع شد")
+    except Exception as e:
+        logger.error(f"خطا در راه‌اندازی سرور webhook: {str(e)}")
+        raise
+
 # تنظیم ربات با تایم‌اوت بالاتر
 application = Application.builder().token(TOKEN).read_timeout(60).write_timeout(60).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 application.add_handler(CallbackQueryHandler(receive_voice))
 
-# اجرای ربات با polling
+# اجرای ربات با webhook
 async def main():
     try:
         await application.initialize()
         logger.info("ربات مقداردهی اولیه شد")
         await application.start()
         logger.info("ربات شروع شد")
-        await application.updater.start_polling(drop_pending_updates=True, timeout=60)
-        logger.info("ربات با polling شروع شد")
+        await application.bot.set_webhook(url=WEBHOOK_URL)
+        logger.info(f"Webhook تنظیم شد: {WEBHOOK_URL}")
+        await setup_webhook()
         while True:
             await asyncio.sleep(3600)
     except Exception as e:
@@ -277,7 +303,7 @@ async def main():
         try:
             if application.running:
                 logger.info("توقف ربات")
-                await application.updater.stop()
+                await application.bot.delete_webhook()
                 await application.stop()
         except Exception as e:
             logger.error(f"خطا در توقف ربات: {str(e)}")
