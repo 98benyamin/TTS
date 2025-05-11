@@ -2,7 +2,7 @@ import requests
 import urllib.parse
 import os
 import asyncio
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, ReactionTypeEmoji
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -42,6 +42,8 @@ SUPPORTED_VOICES = [
 
 # فرمت‌های صوتی پشتیبانی‌شده
 SUPPORTED_FORMATS = ["mp3", "wav", "ogg"]
+
+# تعریف لحن‌ها
 TONES = {
     "emotional": [
         {"name": "شاد و سرزنده", "emoji": "😊", "prompt": "Bright, lively, and warm, with a sing-song quality and frequent pitch rises. Upbeat, enthusiastic, and bursting with positivity, like celebrating a joyful moment. Fast and bouncy pacing during exciting moments, with slight slows for emphasis (e.g., 'وای، چه روز قشنگی!'). Pure happiness and contagious excitement, radiating warmth. Friendly, approachable, and full of life, like a best friend sharing good news. Short pauses after key phrases (e.g., 'آآآره، باورنکردنیه!') to let the joy sink in. Emphasize elongated words like 'خوشحااال' or 'عااالی' for a Persian cheerful vibe."},
@@ -87,9 +89,6 @@ TONES = {
         {"name": "بحث‌برانگیز و منطقی", "emoji": "⚖️", "prompt": "Sharp, confident, and assertive, with a debating edge. Logical, intense, and persuasive, like arguing a point. Fast and precise pacing, with slows for key arguments (e.g., 'این... دلیل اصلی ماست!'). Passion, conviction, and urgency. Articulate and competitive, like a debater. Brief pauses after strong points to emphasize logic. Stress words like 'دلیل' or 'حقیقت' for Persian argumentation."},
     ]
 }
-
-# ایموجی واکنش انیمیشنی
-REACT_EMOJI = "💊"
 
 # ایجاد اپلیکیشن FastAPI
 app = FastAPI()
@@ -199,17 +198,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logger.info(f"دریافت دستور /start از کاربر: {user_id}")
     try:
-        # اضافه کردن واکنش انیمیشنی 💊
-        if update.message:
-            chat_id = update.message.chat_id
-            message_id = update.message.message_id
-            await context.bot.set_message_reaction(
-                chat_id=chat_id,
-                message_id=message_id,
-                reaction=[ReactionTypeEmoji(emoji=REACT_EMOJI)],
-                is_big=True  # انیمیشنی کردن واکنش
-            )
-        
         keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
@@ -272,14 +260,97 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if previous_state == "main" or current_state == "assistant":
             return await start(update, context)
         
-        if previous_state == "text":
+        if previous_state == "select_tone_category":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
-                "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
-                "مثال: Dramatic یا Gruff, fast-talking, New York accent",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
             )
-            context.user_data["state"] = "manual_feeling"
+            context.user_data["state"] = "select_tone_category"
             context.user_data["previous_state"] = "main"
+            return None
+        
+        if previous_state == "select_tone":
+            category = context.user_data.get("selected_category")
+            tones = TONES[category]
+            keyboard = []
+            for i in range(0, len(tones), 2):
+                row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                if i + 1 < len(tones):
+                    row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            category_names = {
+                "emotional": "لحن‌های احساسی",
+                "voice_styles": "لحن‌های گفتاری",
+                "character_affects": "لحن‌های نمایشی / شخصیتی",
+                "functional": "لحن‌های کاربردی"
+            }
+            await update.message.reply_text(
+                f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone"
+            context.user_data["previous_state"] = "select_tone_category"
+            return None
+        
+        if previous_state == "manual_feeling":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if previous_state == "text":
+            if context.user_data.get("feeling_manual", False):
+                await update.message.reply_text(
+                    "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
+                    "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                context.user_data["state"] = "manual_feeling"
+                context.user_data["previous_state"] = "select_tone_category"
+            else:
+                category = context.user_data.get("selected_category")
+                tones = TONES[category]
+                keyboard = []
+                for i in range(0, len(tones), 2):
+                    row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                    if i + 1 < len(tones):
+                        row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                category_names = {
+                    "emotional": "لحن‌های احساسی",
+                    "voice_styles": "لحن‌های گفتاری",
+                    "character_affects": "لحن‌های نمایشی / شخصیتی",
+                    "functional": "لحن‌های کاربردی"
+                }
+                await update.message.reply_text(
+                    f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                    reply_markup=reply_markup
+                )
+                context.user_data["state"] = "select_tone"
+                context.user_data["previous_state"] = "select_tone_category"
             return None
         
         if previous_state == "voice":
@@ -289,7 +360,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
             )
             context.user_data["state"] = "text"
-            context.user_data["previous_state"] = "manual_feeling"
+            context.user_data["previous_state"] = "select_tone" if not context.user_data.get("feeling_manual", False) else "manual_feeling"
             return None
         
         if previous_state == "select_format":
@@ -314,16 +385,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "🎙 تبدیل متن به صدا":
         try:
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
-                "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
-                "مثال: Dramatic یا Gruff, fast-talking, New York accent",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
             )
-            context.user_data["state"] = "manual_feeling"
+            context.user_data["state"] = "select_tone_category"
             context.user_data["previous_state"] = "main"
             return None
         except Exception as e:
-            logger.error(f"خطا در نمایش درخواست حس برای کاربر {user_id}: {str(e)}")
+            logger.error(f"خطا در نمایش منوی لحن‌ها برای کاربر {user_id}: {str(e)}")
             return None
 
     if text == "🤖 دستیار هوشمند":
@@ -342,8 +420,79 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return None
 
     if "state" in context.user_data:
+        # انتخاب دسته‌بندی لحن
+        if context.user_data["state"] == "select_tone_category":
+            category_map = {
+                "✍️ لحن و حس دستی": "manual_feeling",
+                "📢 لحن‌های کاربردی": "functional",
+                "👑 لحن‌های نمایشی / شخصیتی": "character_affects",
+                "🎤 لحن‌های گفتاری": "voice_styles",
+                "🎭 لحن‌های احساسی": "emotional"
+            }
+            if text in category_map:
+                if text == "✍️ لحن و حس دستی":
+                    context.user_data["state"] = "manual_feeling"
+                    context.user_data["previous_state"] = "select_tone_category"
+                    context.user_data["feeling_manual"] = True
+                    await update.message.reply_text(
+                        "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
+                        "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    )
+                    return None
+                else:
+                    category = category_map[text]
+                    tones = TONES[category]
+                    keyboard = []
+                    for i in range(0, len(tones), 2):
+                        row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                        if i + 1 < len(tones):
+                            row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                        keyboard.append(row)
+                    keyboard.append(["🔙 برگشت"])
+                    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                    category_names = {
+                        "emotional": "لحن‌های احساسی",
+                        "voice_styles": "لحن‌های گفتاری",
+                        "character_affects": "لحن‌های نمایشی / شخصیتی",
+                        "functional": "لحن‌های کاربردی"
+                    }
+                    await update.message.reply_text(
+                        f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                        reply_markup=reply_markup
+                    )
+                    context.user_data["state"] = "select_tone"
+                    context.user_data["previous_state"] = "select_tone_category"
+                    context.user_data["selected_category"] = category
+                    return None
+
+        # انتخاب حس
+        elif context.user_data["state"] == "select_tone":
+            category = context.user_data.get("selected_category")
+            tones = TONES[category]
+            tone_name = text
+            for tone in tones:
+                if f"{tone['emoji']} {tone['name']}" == text:
+                    tone_name = tone["name"]
+                    context.user_data["feeling"] = tone["prompt"]
+                    context.user_data["feeling_name"] = tone_name
+                    context.user_data["state"] = "text"
+                    context.user_data["previous_state"] = "select_tone"
+                    context.user_data["feeling_manual"] = False
+                    await update.message.reply_text(
+                        "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
+                        "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    )
+                    return None
+            await update.message.reply_text(
+                "لطفاً یک حس معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+
         # دریافت حس دستی
-        if context.user_data["state"] == "manual_feeling":
+        elif context.user_data["state"] == "manual_feeling":
             feeling = text
             if len(feeling) > MAX_FEELING_LENGTH:
                 await update.message.reply_text(
