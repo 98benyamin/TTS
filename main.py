@@ -127,7 +127,7 @@ TONES = {
 app = FastAPI()
 
 # تابع برای ارسال درخواست به API دستیار هوشمند
-def call_api(prompt, image=None, conversation_history=None):
+def call_api(prompt, image=None, conversation_history=None, file_url=None):
     headers = {"Content-Type": "application/json"}
     
     # Prepare messages with conversation history
@@ -139,23 +139,36 @@ def call_api(prompt, image=None, conversation_history=None):
             messages.append(msg)
     
     # Add current message
-    messages.append({"role": "user", "content": prompt})
+    if image is None and file_url is None:
+        # Text-only query
+        messages.append({"role": "user", "content": prompt})
+    elif file_url is not None:
+        # Add image as URL (Medical v6.py style)
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": file_url}}
+            ]
+        })
+    else:
+        # Using the original method with base64 encoding
+        try:
+            buffered = io.BytesIO()
+            image.save(buffered, format="JPEG")
+            image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            # Add the base64 image to messages based on API format
+            messages.append({"role": "user", "content": prompt})
+            messages.append({"role": "user", "content": {"image": image_base64}})
+        except Exception as e:
+            logger.error(f"خطا در پردازش تصویر برای API: {str(e)}")
+            return "خطا در پردازش تصویر."
 
     payload = {
         "model": MODEL,
         "messages": messages,
         "vision": True
     }
-
-    if image:
-        try:
-            buffered = io.BytesIO()
-            image.save(buffered, format="JPEG")
-            image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-            payload["messages"].append({"role": "user", "content": {"image": image_base64}})
-        except Exception as e:
-            logger.error(f"خطا در پردازش تصویر برای API: {str(e)}")
-            return "خطا در پردازش تصویر."
 
     try:
         logger.info(f"ارسال درخواست به API: {API_URL}, payload: {payload}")
@@ -283,82 +296,84 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
         
-        # Get the photo file
+        # Get the photo file - similar to Medical v6.py approach
         photo_file = await photo.get_file()
-        image_data = await photo_file.download_as_bytearray()
+        file_url = photo_file.file_path
         
-        # Convert image to base64
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        # Alternative approach for APIs that need the actual image bytes
+        image_data = await photo_file.download_as_bytearray()
+        image = process_image(image_data)
         
         # Get user caption or use default
         user_caption = update.message.caption or "لطفاً این تصویر را تحلیل کنید و متن مناسب برای تبدیل به صدا پیشنهاد دهید."
         
-        # Prepare API request
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
+        # Add to conversation history
+        if "conversation_history" not in context.user_data:
+            context.user_data["conversation_history"] = []
+            
+        context.user_data["conversation_history"].append({
+            "role": "user", 
+            "content": f"تصویر با کپشن: {user_caption}"
+        })
         
-        # Format the prompt with the image
-        prompt = f"{user_caption}\n\n[Image: {image_base64}]"
-        
-        payload = {
-            "model": MODEL,
-            "prompt": prompt,
-            "max_tokens": 500,
-            "temperature": 0.7
-        }
-        
-        # Make API request
+        # Create a progress update task to show the AI is working
         try:
-            logger.info("Sending request to Pollinations API...")
-            response = requests.post(API_URL, json=payload, headers=headers, timeout=30)
+            await processing_message.edit_text("در حال آنالیز تصویر 🔍")
+            await asyncio.sleep(1)
+            await processing_message.edit_text("در حال تحلیل و پردازش 🧠")
             
-            if response.status_code != 200:
-                logger.error(f"API Error: Status {response.status_code}, Response: {response.text}")
-                raise requests.RequestException(f"API returned status code {response.status_code}")
-            
-            ai_response = response.text
-            logger.info(f"Received response from API: {ai_response[:200]}...")
-            
-            # Add to conversation history
-            context.user_data["conversation_history"].append({
-                "role": "user", 
-                "content": f"تصویر با کپشن: {user_caption}"
-            })
-            context.user_data["conversation_history"].append({
-                "role": "assistant", 
-                "content": ai_response
-            })
-            
-            # Update processing message with the response
-            try:
-                await processing_message.edit_text(
-                    f"✨ تحلیل تصویر:\n\n{ai_response}",
-                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-                )
-            except Exception as edit_error:
-                logger.error(f"Error editing message: {str(edit_error)}")
-                # If we can't edit the message, send a new one
-                await update.message.reply_text(
-                    f"✨ تحلیل تصویر:\n\n{ai_response}",
-                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-                )
-            
-        except requests.RequestException as e:
-            logger.error(f"خطا در ارتباط با API: {str(e)}")
-            error_message = "❌ خطا در تحلیل تصویر. لطفاً دوباره امتحان کنید."
-            try:
-                await processing_message.edit_text(
-                    error_message,
-                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-                )
-            except Exception:
-                await update.message.reply_text(
-                    error_message,
-                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-                )
+            # Show progress bar
+            progress_duration = 5  # seconds
+            step_duration = progress_duration / 20
+            for percentage in range(0, 101, 5):
+                try:
+                    await processing_message.edit_text(
+                        f"در حال تحلیل تصویر 🧠\n{create_progress_bar(percentage)}"
+                    )
+                    await asyncio.sleep(step_duration)
+                except Exception as e:
+                    logger.warning(f"خطا در به‌روزرسانی پیشرفت ({percentage}%): {str(e)}")
+                    
+            await processing_message.edit_text("در حال دریافت نتایج تحلیل...")
+        except Exception as e:
+            logger.warning(f"خطا در به‌روزرسانی پیام پردازش: {str(e)}")
+            # Continue despite progress bar errors
         
+        # API call with retry mechanism
+        max_retries = 2
+        response = None
+        
+        for attempt in range(max_retries):
+            try:
+                # Use file_url approach (Medical v6.py style)
+                response = call_api(user_caption, file_url=file_url, conversation_history=context.user_data["conversation_history"])
+                break  # If successful, exit the retry loop
+            except Exception as e:
+                logger.error(f"خطا در تحلیل تصویر (تلاش {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt == max_retries - 1:  # Last attempt
+                    response = "متأسفانه خطایی در تحلیل تصویر رخ داد. لطفاً دوباره امتحان کنید."
+                await asyncio.sleep(1)  # Wait before retry
+        
+        # Add AI response to conversation history
+        context.user_data["conversation_history"].append({
+            "role": "assistant", 
+            "content": response
+        })
+        
+        # Update processing message with the response
+        try:
+            await processing_message.edit_text(
+                f"✨ تحلیل تصویر:\n\n{response}",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+        except Exception as e:
+            # If editing fails (perhaps due to length), send as new message
+            logger.warning(f"خطا در به‌روزرسانی پیام نتیجه: {str(e)}")
+            await update.message.reply_text(
+                f"✨ تحلیل تصویر:\n\n{response}",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            
     except Exception as e:
         logger.error(f"خطا در پردازش تصویر برای کاربر {user_id}: {str(e)}")
         await update.message.reply_text(
@@ -389,7 +404,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if previous_state == "main" or current_state == "assistant":
             # Clear conversation history when going back to main menu
-            context.user_data["conversation_history"] = []
+            if "conversation_history" in context.user_data:
+                context.user_data["conversation_history"] = []
             return await start(update, context)
         
         if previous_state == "select_tone_category":
@@ -546,6 +562,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             context.user_data["state"] = "assistant"
             context.user_data["previous_state"] = "main"
+            
+            # Initialize conversation history if needed
+            if "conversation_history" not in context.user_data:
+                context.user_data["conversation_history"] = []
+                
+            # Add system welcome message to history
+            welcome_msg = "سلام! من ربات دستیار متن به صدا هستم. متن یا تصویر بفرستید تا به شما کمک کنم!"
+            context.user_data["conversation_history"].append({"role": "assistant", "content": welcome_msg})
+            
             return None
         except Exception as e:
             logger.error(f"خطا در ارسال پیام برای دستیار هوشمند برای کاربر {user_id}: {str(e)}")
@@ -788,13 +813,42 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # دستیار هوشمند
         elif context.user_data["state"] == "assistant":
             # Add user message to conversation history
+            if "conversation_history" not in context.user_data:
+                context.user_data["conversation_history"] = []
+            
             context.user_data["conversation_history"].append({"role": "user", "content": text})
             
-            # Keep only the last MAX_HISTORY messages
+            # Keep conversation history to a reasonable size
             if len(context.user_data["conversation_history"]) > MAX_HISTORY * 2:  # *2 because each exchange has user and assistant messages
                 context.user_data["conversation_history"] = context.user_data["conversation_history"][-MAX_HISTORY * 2:]
             
-            response = call_api(text, conversation_history=context.user_data["conversation_history"])
+            # Show typing indicator
+            try:
+                temp_message = await update.message.reply_text("🤖", parse_mode="Markdown")
+            except Exception as e:
+                logger.warning(f"خطا در ارسال پیام موقت: {str(e)}")
+                temp_message = None
+            
+            # Call API with retry mechanism
+            max_retries = 2
+            response = None
+            
+            for attempt in range(max_retries):
+                try:
+                    response = call_api(text, conversation_history=context.user_data["conversation_history"])
+                    break
+                except Exception as e:
+                    logger.error(f"خطا در دریافت پاسخ (تلاش {attempt + 1}/{max_retries}): {str(e)}")
+                    if attempt == max_retries - 1:  # Last attempt
+                        response = "متأسفانه خطایی در پردازش درخواست رخ داد. لطفاً دوباره امتحان کنید."
+                    await asyncio.sleep(1)  # Wait before retry
+            
+            # Remove typing indicator
+            if temp_message:
+                try:
+                    await context.bot.delete_message(chat_id=update.message.chat_id, message_id=temp_message.message_id)
+                except Exception as e:
+                    logger.warning(f"خطا در حذف پیام موقت: {str(e)}")
             
             # Add assistant response to conversation history
             context.user_data["conversation_history"].append({"role": "assistant", "content": response})
