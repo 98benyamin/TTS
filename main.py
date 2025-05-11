@@ -286,31 +286,52 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Get the photo file
         photo_file = await photo.get_file()
         image_data = await photo_file.download_as_bytearray()
-        image = process_image(image_data)
+        
+        # Convert image to base64
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
         
         # Get user caption or use default
         user_caption = update.message.caption or "لطفاً این تصویر را تحلیل کنید و متن مناسب برای تبدیل به صدا پیشنهاد دهید."
         
-        # Add to conversation history
-        context.user_data["conversation_history"].append({
-            "role": "user", 
-            "content": f"تصویر با کپشن: {user_caption}"
-        })
+        # Prepare API request
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "model": MODEL,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_caption},
+                {"role": "user", "content": {"image": image_base64}}
+            ]
+        }
         
-        # Get AI response
-        response = call_api(user_caption, image, context.user_data["conversation_history"])
-        
-        # Add AI response to conversation history
-        context.user_data["conversation_history"].append({
-            "role": "assistant", 
-            "content": response
-        })
-        
-        # Update processing message with the response
-        await processing_message.edit_text(
-            f"✨ تحلیل تصویر:\n\n{response}",
-            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-        )
+        # Make API request
+        try:
+            response = requests.post(API_URL, json=payload, headers=headers, timeout=30)
+            response.raise_for_status()
+            ai_response = response.text
+            
+            # Add to conversation history
+            context.user_data["conversation_history"].append({
+                "role": "user", 
+                "content": f"تصویر با کپشن: {user_caption}"
+            })
+            context.user_data["conversation_history"].append({
+                "role": "assistant", 
+                "content": ai_response
+            })
+            
+            # Update processing message with the response
+            await processing_message.edit_text(
+                f"✨ تحلیل تصویر:\n\n{ai_response}",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            
+        except requests.RequestException as e:
+            logger.error(f"خطا در ارتباط با API: {str(e)}")
+            await processing_message.edit_text(
+                "❌ خطا در تحلیل تصویر. لطفاً دوباره امتحان کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
         
     except Exception as e:
         logger.error(f"خطا در پردازش تصویر برای کاربر {user_id}: {str(e)}")
