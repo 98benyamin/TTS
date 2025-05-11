@@ -336,16 +336,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return await start_bot_services(update, context)
         else:
             # اگر هنوز عضو نشده باشد
-            keyboard = [
-                [{'text': '🔗 عضویت در کانال', 'url': REQUIRED_CHANNEL_URL}],
-                [{'text': '✅ بررسی عضویت', 'callback_data': 'check_membership'}]
-            ]
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🌟 عضویت در کانال رسمی", url=REQUIRED_CHANNEL_URL)],
+                [InlineKeyboardButton("✅ تأیید عضویت من", callback_data="check_membership")]
+            ])
+            
             await query.edit_message_text(
-                "⚠️ شما هنوز عضو کانال نشده‌اید!\n\n"
-                "برای استفاده از خدمات ربات، لطفاً ابتدا در کانال زیر عضو شوید:\n"
-                f"{REQUIRED_CHANNEL}\n\n"
-                "پس از عضویت، روی دکمه «بررسی عضویت» کلیک کنید.",
-                reply_markup={'inline_keyboard': keyboard}
+                "⚠️ <b>دسترسی محدود شده</b> ⚠️\n\n"
+                "💡 <b>برای استفاده از امکانات ویژه این ربات، ابتدا باید عضو کانال رسمی ما شوید.</b>\n\n"
+                "👈 با عضویت در کانال، از آخرین بروزرسانی‌ها، آموزش‌ها و امکانات جدید مطلع خواهید شد.\n\n"
+                f"📣 <b>آدرس کانال:</b> {REQUIRED_CHANNEL}\n\n"
+                "🔄 پس از عضویت، روی دکمه زیر کلیک کنید.",
+                reply_markup=keyboard,
+                parse_mode="HTML"
             )
     return None
 
@@ -374,8 +377,7 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         keyboard = [
             ["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], 
-            ["🔊 نمونه صدا و حس ها"],
-            ["🔙 برگشت"]
+            ["🔊 نمونه صدا و حس ها"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -423,19 +425,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # اگر عضو کانال است، مستقیم به سرویس‌های ربات دسترسی دهید
         return await start_bot_services(update, context)
     else:
-        # اگر کاربر عضو کانال نیست، پیام عضویت اجباری نمایش دهید
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        
+        # اگر کاربر عضو کانال نیست، پیام عضویت اجباری نمایش دهید        
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔗 عضویت در کانال", url=REQUIRED_CHANNEL_URL)],
-            [InlineKeyboardButton("✅ بررسی عضویت", callback_data="check_membership")]
+            [InlineKeyboardButton("🌟 عضویت در کانال رسمی", url=REQUIRED_CHANNEL_URL)],
+            [InlineKeyboardButton("✅ تأیید عضویت من", callback_data="check_membership")]
         ])
         
         await update.message.reply_text(
-            "👋 <b>سلام!</b>\n\n"
-            "🔒 <b>برای استفاده از خدمات ربات، لطفاً ابتدا در کانال زیر عضو شوید:</b>\n"
-            f"📢 {REQUIRED_CHANNEL}\n\n"
-            "پس از عضویت، روی دکمه «بررسی عضویت» کلیک کنید تا دسترسی شما فعال شود.",
+            "🔐 <b>به ربات تبدیل متن به صدای هوشمند خوش آمدید</b> 🔐\n\n"
+            "📢 <b>برای استفاده از امکانات کامل این ربات، ابتدا باید عضو کانال رسمی ما شوید:</b>\n\n"
+            f"🔹 <b>کانال:</b> {REQUIRED_CHANNEL}\n\n"
+            "💡 <b>چرا عضویت در کانال مهم است؟</b>\n"
+            "• دریافت آخرین اخبار و بروزرسانی‌های ربات\n"
+            "• آموزش‌های اختصاصی کار با ربات\n"
+            "• اطلاع از امکانات جدیدی که اضافه می‌شوند\n"
+            "• پشتیبانی سریع و اختصاصی\n\n"
+            "🔄 <b>پس از عضویت، روی دکمه «تأیید عضویت من» کلیک کنید.</b>",
             reply_markup=keyboard,
             parse_mode="HTML"
         )
@@ -462,8 +467,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         logger.info(f"پردازش تصویر از کاربر {user_id}")
         
-        # Use valid emojis for reactions (👍 or ❤️)
-        valid_reaction_emojis = ["🤨", "🤔"]
+        valid_reaction_emojis = ["👀", "🤔"]
         selected_emoji = random.choice(valid_reaction_emojis)
         
         try:
@@ -480,7 +484,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Send processing message
         processing_message = await update.message.reply_text(
-            "🔄 در حال پردازش تصویر و تحلیل آن...",
+            "🔍",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
         
