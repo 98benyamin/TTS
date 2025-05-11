@@ -307,15 +307,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     logger.info(f"دریافت دستور /start از کاربر: {user_id}")
     try:
-        # Add reaction to the /start message
-        chat_id = update.message.chat_id
-        message_id = update.message.message_id
-        await context.bot.set_message_reaction(
-            chat_id=chat_id,
-            message_id=message_id,
-            reaction=[ReactionTypeEmoji(emoji="👋")],
-            is_big=True
-        )
+        # Add reaction to the /start message - using a valid reaction emoji (👍)
+        try:
+            chat_id = update.message.chat_id
+            message_id = update.message.message_id
+            await context.bot.set_message_reaction(
+                chat_id=chat_id,
+                message_id=message_id,
+                reaction=[ReactionTypeEmoji(emoji="👍")],
+                is_big=True
+            )
+        except Exception as e:
+            # Log the error but continue execution
+            logger.warning(f"خطا در افزودن واکنش: {str(e)}")
 
         keyboard = [
             ["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], 
@@ -361,12 +365,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         logger.info(f"پردازش تصویر از کاربر {user_id}")
         
-        # Añadir reacción aleatoria a la foto (🤨 o 🤔)
-        thinking_emojis = ["🤨", "🤔"]
-        selected_emoji = random.choice(thinking_emojis)
+        # Use valid emojis for reactions (👍 or ❤️)
+        valid_reaction_emojis = ["👍", "❤️"]
+        selected_emoji = random.choice(valid_reaction_emojis)
         
         try:
-            # Agregar reacción animada a la foto
+            # Add reaction with valid emoji
             await context.bot.set_message_reaction(
                 chat_id=chat_id,
                 message_id=message_id,
@@ -735,12 +739,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML"
             )
             
-            # Intentar añadir una reacción de saludo al mensaje
+            # Try to add reaction with valid emoji (👍)
             try:
                 await context.bot.set_message_reaction(
                     chat_id=update.message.chat_id,
                     message_id=update.message.message_id,
-                    reaction=[ReactionTypeEmoji(emoji="👋")],
+                    reaction=[ReactionTypeEmoji(emoji="👍")],
                     is_big=True
                 )
             except Exception as e:
