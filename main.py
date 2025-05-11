@@ -205,7 +205,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=chat_id,
             message_id=message_id,
             reaction=[ReactionTypeEmoji(emoji="🤪")],
-            is_big=False
+            is_big=True
         )
 
         keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
