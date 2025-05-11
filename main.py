@@ -1204,39 +1204,26 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             feeling_prompt = selected_tone["prompt"]
             tone_name = selected_tone["name"]
             
-            # Prepare to generate sample audio
-            await update.message.reply_text(
-                f"🔊 <b>در حال تولید نمونه صدا...</b>\n\n"
+            # Notify user that their request is being processed
+            processing_message = await update.message.reply_text(
+                f"🔊 <b>در حال ارسال درخواست به سرور برای تولید صدا...</b>\n\n"
                 f"• <b>صدا:</b> {voice_persian}\n"
-                f"• <b>حس:</b> {tone_name}\n\n"
-                "لطفاً چند لحظه صبر کنید...",
+                f"• <b>حس:</b> {tone_name}",
                 parse_mode="HTML"
             )
             
-            # Show progress message with animated indicator
-            progress_message = await update.message.reply_text("در حال آماده‌سازی... ⏳")
-            
             try:
-                await progress_message.edit_text("در حال پردازش متن... 🔍")
-                await asyncio.sleep(1)
+                # Generate unique file name for this sample with OGG format
+                output_file = f"sample_{uuid4()}.ogg"
                 
-                # Show progress bar for better UX
-                progress_duration = 4
-                step_duration = progress_duration / 20
-                for percentage in range(0, 101, 5):
-                    try:
-                        await progress_message.edit_text(
-                            f"در حال تولید نمونه صدا 🎙\n{create_progress_bar(percentage)}"
-                        )
-                    except Exception as e:
-                        logger.error(f"خطا در به‌روزرسانی پروگرس بار ({percentage}%) برای کاربر {user_id}: {str(e)}")
-                    await asyncio.sleep(step_duration)
+                # Generate audio using our existing function with OGG format
+                success = generate_audio(sample_text, feeling_prompt, voice, output_file, "ogg")
                 
-                # Generate unique file name for this sample
-                output_file = f"sample_{uuid4()}.mp3"
-                
-                # Generate audio using our existing function
-                success = generate_audio(sample_text, feeling_prompt, voice, output_file, "mp3")
+                # Delete the processing message
+                try:
+                    await context.bot.delete_message(chat_id=update.message.chat_id, message_id=processing_message.message_id)
+                except Exception as e:
+                    logger.warning(f"خطا در حذف پیام پردازش: {str(e)}")
                 
                 if success:
                     try:
@@ -1251,19 +1238,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Delete temp file after sending
                         os.remove(output_file)
                         
-                        # Update progress message
-                        await progress_message.edit_text(
-                            "✅ نمونه صدا با موفقیت ارسال شد!\n\n"
-                            "می‌توانید حس و صدای دیگری را انتخاب کنید یا به منوی اصلی بازگردید."
-                        )
-                        
                         # Keep the same state to allow further selections
                         return None
                         
                     except Exception as e:
                         logger.error(f"خطا در ارسال فایل صوتی نمونه برای کاربر {user_id}: {str(e)}")
-                        await progress_message.edit_text(
-                            "❌ خطا در ارسال فایل صوتی. لطفاً دوباره تلاش کنید."
+                        await update.message.reply_text(
+                            "❌ خطا در ارسال فایل صوتی. لطفاً دوباره تلاش کنید.",
+                            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                         )
                         
                         # Remove temp file if it exists
@@ -1274,8 +1256,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             pass
                             
                 else:
-                    await progress_message.edit_text(
-                        "❌ خطا در تولید نمونه صدا. لطفاً دوباره تلاش کنید."
+                    await update.message.reply_text(
+                        "❌ خطا در تولید نمونه صدا. لطفاً دوباره تلاش کنید.",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                     )
                     
             except Exception as e:
