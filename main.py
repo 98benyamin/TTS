@@ -2,6 +2,7 @@ import requests
 import urllib.parse
 import os
 import asyncio
+import random
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, ReactionTypeEmoji
 from telegram.ext import (
     Application,
@@ -311,8 +312,27 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return None
 
     photo = update.message.photo[-1]
+    message_id = update.message.message_id
+    chat_id = update.message.chat_id
+    
     try:
         logger.info(f"پردازش تصویر از کاربر {user_id}")
+        
+        # Añadir reacción aleatoria a la foto (🤨 o 🤔)
+        thinking_emojis = ["🤨", "🤔"]
+        selected_emoji = random.choice(thinking_emojis)
+        
+        try:
+            # Agregar reacción animada a la foto
+            await context.bot.set_message_reaction(
+                chat_id=chat_id,
+                message_id=message_id,
+                reaction=[ReactionTypeEmoji(emoji=selected_emoji)],
+                is_big=True
+            )
+            logger.info(f"Reacción {selected_emoji} añadida a la foto del usuario {user_id}")
+        except Exception as e:
+            logger.warning(f"No se pudo añadir reacción a la foto: {str(e)}")
         
         # Send processing message
         processing_message = await update.message.reply_text(
@@ -384,25 +404,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "content": response
         })
         
-        # Update processing message with the response
+        # Borrar el mensaje de procesamiento
         try:
-            await processing_message.edit_text(
-                f"✨ تحلیل تصویر:\n\n{response}",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
+            await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
         except Exception as e:
-            # If editing fails (perhaps due to length), send as new message
-            logger.warning(f"خطا در به‌روزرسانی پیام نتیجه: {str(e)}")
-            await update.message.reply_text(
-                f"✨ تحلیل تصویر:\n\n{response}",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
+            logger.warning(f"No se pudo borrar el mensaje de procesamiento: {str(e)}")
+        
+        # Enviar la respuesta como reply al mensaje original
+        await update.message.reply_text(
+            f"✨ تحلیل تصویر:\n\n{response}",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True),
+            reply_to_message_id=message_id  # Responder directamente al mensaje original
+        )
             
     except Exception as e:
         logger.error(f"خطا در پردازش تصویر برای کاربر {user_id}: {str(e)}")
         await update.message.reply_text(
             "❌ مشکلی در پردازش تصویر پیش آمد. لطفاً دوباره امتحان کنید.",
-            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True),
+            reply_to_message_id=message_id  # Responder directamente al mensaje original en caso de error
         )
     return None
 
@@ -592,10 +612,24 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             keyboard = [["🔙 برگشت"]]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            await update.message.reply_text(
+            
+            # Mensaje inicial del asistente
+            greeting_message = await update.message.reply_text(
                 "سلام! من ربات دستیار متن به صدا هستم. متن یا تصویر بفرستید تا به شما کمک کنم!",
                 reply_markup=reply_markup
             )
+            
+            # Intentar añadir una reacción de saludo al mensaje
+            try:
+                await context.bot.set_message_reaction(
+                    chat_id=update.message.chat_id,
+                    message_id=update.message.message_id,
+                    reaction=[ReactionTypeEmoji(emoji="👋")],
+                    is_big=True
+                )
+            except Exception as e:
+                logger.warning(f"No se pudo añadir reacción al mensaje: {str(e)}")
+            
             context.user_data["state"] = "assistant"
             context.user_data["previous_state"] = "main"
             
@@ -861,6 +895,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if "conversation_history" not in context.user_data:
                 context.user_data["conversation_history"] = []
             
+            # Guardar el ID del mensaje para responder directamente
+            message_id = update.message.message_id
+            
             context.user_data["conversation_history"].append({"role": "user", "content": text})
             
             # Keep conversation history to a reasonable size
@@ -898,59 +935,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Add assistant response to conversation history
             context.user_data["conversation_history"].append({"role": "assistant", "content": response})
             
+            # Responder directamente al mensaje original
             await update.message.reply_text(
                 response,
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True),
+                reply_to_message_id=message_id
             )
             return None
-    
-    return None
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    logger.info(f"دریافت دستور /cancel از کاربر: {user_id}")
-    try:
-        await update.message.reply_text(
-            "عملیات لغو شد. با /start می‌تونید دوباره شروع کنید.",
-            reply_markup=ReplyKeyboardRemove()
-        )
-        context.user_data.clear()
-        context.user_data["state"] = "main"
-        keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text(
-            "🎙 به ربات تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
-            "برای تولید صدای جدید یا استفاده از دستیار هوشمند، یکی از دکمه‌های زیر را انتخاب کنید:",
-            reply_markup=reply_markup
-        )
-    except Exception as e:
-        logger.error(f"خطا در ارسال پاسخ /cancel برای کاربر {user_id}: {str(e)}")
-    return None
-
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.error(f"Update {update} caused error {context.error}")
-    if update and update.message:
-        await update.message.reply_text(
-            "خطایی رخ داد. لطفاً دوباره امتحان کنید.",
-            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-        )
-
-application = Application.builder().token(TOKEN).read_timeout(60).write_timeout(60).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-application.add_handler(CommandHandler("cancel", cancel))
-application.add_error_handler(error_handler)
-
-@app.post("/webhook")
-async def webhook(request: Request):
-    try:
-        update = Update.de_json(await request.json(), application.bot)
-        await application.process_update(update)
-        return {"status": "ok"}
-    except Exception as e:
-        logger.error(f"خطا در پردازش درخواست webhook: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 async def main():
     try:
