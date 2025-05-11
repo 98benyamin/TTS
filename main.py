@@ -29,7 +29,7 @@ TOKEN = "7520523575:AAG787CwUPBFctoJzjETJ6Gk-GxxnF0RaWc"
 WEBHOOK_URL = "https://tts-qroo.onrender.com/webhook"
 MAX_TEXT_LENGTH = 1000
 MAX_FEELING_LENGTH = 500
-MAX_HISTORY = 10  # Maximum number of messages to keep in history
+MAX_HISTORY = 50  # Maximum number of messages to keep in history
 
 # تنظیمات API دستیار هوشمند
 API_URL = "https://text.pollinations.ai/"
@@ -56,7 +56,6 @@ SYSTEM_PROMPT = """
 4. محدودیت‌ها:
 - حداکثر طول متن: 1000 کاراکتر
 - حداکثر طول دستورالعمل حس: 500 کاراکتر
-- پشتیبانی از صداهای محدود: alloy, echo, fable, onyx, nova, shimmer, coral, verse, ballad, ash, sage, amuch, dan, elan
 
 5. قابلیت‌های ویژه:
 - تحلیل تصاویر و پیشنهاد متن مناسب
