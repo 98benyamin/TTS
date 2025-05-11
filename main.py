@@ -3,7 +3,7 @@ import urllib.parse
 import os
 import asyncio
 import random
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, ReactionTypeEmoji
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, ReactionTypeEmoji, CallbackQueryHandler
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -30,6 +30,10 @@ WEBHOOK_URL = "https://tts-qroo.onrender.com/webhook"
 MAX_TEXT_LENGTH = 1000
 MAX_FEELING_LENGTH = 500
 MAX_HISTORY = 50  # Maximum number of messages to keep in history
+
+# کانال اجباری
+REQUIRED_CHANNEL = "@Dezhcode"
+REQUIRED_CHANNEL_URL = "https://t.me/Dezhcode"
 
 # متن‌های نمونه برای نمایش حس‌ها
 SAMPLE_TEXTS = {
@@ -303,18 +307,60 @@ def create_progress_bar(percentage):
     bar = "█" * filled + "□" * empty
     return f"[{bar} {percentage}%]"
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def check_membership(bot, user_id):
+    """بررسی عضویت کاربر در کانال مورد نظر"""
+    try:
+        member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
+        # اگر کاربر از کانال خارج شده یا اخراج شده باشد
+        if member.status in ["left", "kicked"]:
+            return False
+        # اگر عضو است (member یا creator یا administrator)
+        return True
+    except Exception as e:
+        logger.error(f"خطا در بررسی عضویت کاربر {user_id}: {str(e)}")
+        return False
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """مدیریت کلیک روی دکمه‌های اینلاین"""
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == "check_membership":
+        user_id = update.effective_user.id
+        is_member = await check_membership(context.bot, user_id)
+        
+        if is_member:
+            # اگر کاربر عضو کانال باشد، شروع ربات
+            await query.message.delete()
+            return await start_bot_services(update, context)
+        else:
+            # اگر هنوز عضو نشده باشد
+            keyboard = [
+                [{'text': '🔗 عضویت در کانال', 'url': REQUIRED_CHANNEL_URL}],
+                [{'text': '✅ بررسی عضویت', 'callback_data': 'check_membership'}]
+            ]
+            await query.edit_message_text(
+                "⚠️ شما هنوز عضو کانال نشده‌اید!\n\n"
+                "برای استفاده از خدمات ربات، لطفاً ابتدا در کانال زیر عضو شوید:\n"
+                f"{REQUIRED_CHANNEL}\n\n"
+                "پس از عضویت، روی دکمه «بررسی عضویت» کلیک کنید.",
+                reply_markup={'inline_keyboard': keyboard}
+            )
+    return None
+
+async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """شروع سرویس‌های اصلی ربات پس از تایید عضویت"""
     user_id = update.effective_user.id
     user = update.effective_user
     user_fullname = f"{user.first_name} {user.last_name if user.last_name else ''}"
     user_fullname = user_fullname.strip()
     
-    logger.info(f"دریافت دستور /start از کاربر: {user_id}")
+    logger.info(f"دریافت دستور /start و تأیید عضویت برای کاربر: {user_id}")
     try:
-        # Add reaction to the /start message - using a valid reaction emoji (👍)
+        # Add reaction to the /start message - using a valid reaction emoji (😎)
         try:
-            chat_id = update.message.chat_id
-            message_id = update.message.message_id
+            chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
+            message_id = update.message.message_id if update.message else update.callback_query.message.message_id
             await context.bot.set_message_reaction(
                 chat_id=chat_id,
                 message_id=message_id,
@@ -331,22 +377,68 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ["🔙 برگشت"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text(
-            f"✨ <b>سلام {user_fullname} عزیز!</b> ✨\n\n"
-            "🎵 به ربات پیشرفته تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
-            "📌 <b>با این ربات می‌توانید:</b>\n"
-            "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
-            "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
-            "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n"
-            "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
-            reply_markup=reply_markup,
-            parse_mode="HTML"
-        )
+        
+        # Use the appropriate method to send message based on where the command came from
+        if update.message:
+            await update.message.reply_text(
+                f"✨ <b>سلام {user_fullname} عزیز!</b> ✨\n\n"
+                "🎵 به ربات پیشرفته تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
+                "📌 <b>با این ربات می‌توانید:</b>\n"
+                "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
+                "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
+                "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n"
+                "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+        elif update.callback_query:
+            await update.callback_query.message.reply_text(
+                f"✨ <b>سلام {user_fullname} عزیز!</b> ✨\n\n"
+                "🎵 به ربات پیشرفته تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
+                "📌 <b>با این ربات می‌توانید:</b>\n"
+                "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
+                "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
+                "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n"
+                "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+        
         context.user_data.clear()
         context.user_data["state"] = "main"
     except Exception as e:
         logger.error(f"خطا در ارسال پاسخ /start برای کاربر {user_id}: {str(e)}")
     return None
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """دستور شروع - بررسی عضویت کاربر در کانال"""
+    user_id = update.effective_user.id
+    logger.info(f"دریافت دستور /start از کاربر: {user_id}")
+    
+    # بررسی عضویت کاربر در کانال
+    is_member = await check_membership(context.bot, user_id)
+    
+    if is_member:
+        # اگر عضو کانال است، مستقیم به سرویس‌های ربات دسترسی دهید
+        return await start_bot_services(update, context)
+    else:
+        # اگر کاربر عضو کانال نیست، پیام عضویت اجباری نمایش دهید
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔗 عضویت در کانال", url=REQUIRED_CHANNEL_URL)],
+            [InlineKeyboardButton("✅ بررسی عضویت", callback_data="check_membership")]
+        ])
+        
+        await update.message.reply_text(
+            "👋 <b>سلام!</b>\n\n"
+            "🔒 <b>برای استفاده از خدمات ربات، لطفاً ابتدا در کانال زیر عضو شوید:</b>\n"
+            f"📢 {REQUIRED_CHANNEL}\n\n"
+            "پس از عضویت، روی دکمه «بررسی عضویت» کلیک کنید تا دسترسی شما فعال شود.",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        return None
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1325,6 +1417,7 @@ application = Application.builder().token(TOKEN).build()
 
 # Register handlers
 application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(button_callback))
 application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
