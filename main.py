@@ -294,21 +294,32 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_caption = update.message.caption or "لطفاً این تصویر را تحلیل کنید و متن مناسب برای تبدیل به صدا پیشنهاد دهید."
         
         # Prepare API request
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        # Format the prompt with the image
+        prompt = f"{user_caption}\n\n[Image: {image_base64}]"
+        
         payload = {
             "model": MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_caption},
-                {"role": "user", "content": {"image": image_base64}}
-            ]
+            "prompt": prompt,
+            "max_tokens": 500,
+            "temperature": 0.7
         }
         
         # Make API request
         try:
+            logger.info("Sending request to Pollinations API...")
             response = requests.post(API_URL, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
+            
+            if response.status_code != 200:
+                logger.error(f"API Error: Status {response.status_code}, Response: {response.text}")
+                raise requests.RequestException(f"API returned status code {response.status_code}")
+            
             ai_response = response.text
+            logger.info(f"Received response from API: {ai_response[:200]}...")
             
             # Add to conversation history
             context.user_data["conversation_history"].append({
@@ -321,17 +332,32 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
             
             # Update processing message with the response
-            await processing_message.edit_text(
-                f"✨ تحلیل تصویر:\n\n{ai_response}",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
+            try:
+                await processing_message.edit_text(
+                    f"✨ تحلیل تصویر:\n\n{ai_response}",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+            except Exception as edit_error:
+                logger.error(f"Error editing message: {str(edit_error)}")
+                # If we can't edit the message, send a new one
+                await update.message.reply_text(
+                    f"✨ تحلیل تصویر:\n\n{ai_response}",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
             
         except requests.RequestException as e:
             logger.error(f"خطا در ارتباط با API: {str(e)}")
-            await processing_message.edit_text(
-                "❌ خطا در تحلیل تصویر. لطفاً دوباره امتحان کنید.",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-            )
+            error_message = "❌ خطا در تحلیل تصویر. لطفاً دوباره امتحان کنید."
+            try:
+                await processing_message.edit_text(
+                    error_message,
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+            except Exception:
+                await update.message.reply_text(
+                    error_message,
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
         
     except Exception as e:
         logger.error(f"خطا در پردازش تصویر برای کاربر {user_id}: {str(e)}")
