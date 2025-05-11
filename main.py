@@ -31,6 +31,14 @@ MAX_TEXT_LENGTH = 1000
 MAX_FEELING_LENGTH = 500
 MAX_HISTORY = 50  # Maximum number of messages to keep in history
 
+# متن‌های نمونه برای نمایش حس‌ها
+SAMPLE_TEXTS = {
+    "emotional": "زندگی پر از لحظات شگفت‌انگیز است. گاهی غم و گاهی شادی، گاهی ترس و گاهی امید. هر احساسی که داری، بخشی از این سفر زیباست. پس عمیق نفس بکش و این لحظه را با تمام وجود احساس کن.",
+    "voice_styles": "سلام دوست من! خوش اومدی به دنیای صداها. اینجا میتونی با سبک‌های مختلف گفتاری آشنا بشی. از لحن رسمی تا صمیمی، از داستان‌گویی تا خبری. هر صدایی داستان خودش رو داره.",
+    "character_affects": "به نام خداوند جان و خرد! آیا آماده‌ای تا به سرزمین افسانه‌ها سفر کنی؟ من راهنمای تو در این سفر هستم. گاهی مرموز، گاهی حماسی، و گاهی شیطنت‌آمیز. بیا با هم این ماجراجویی رو شروع کنیم!",
+    "functional": "توجه! توجه! یک خبر مهم داریم. امروز میخوام یک نکته آموزشی مهم رو باهات در میون بذارم. با دقت گوش کن و یادداشت بردار. این اطلاعات میتونه در آینده خیلی به دردت بخوره."
+}
+
 # تنظیمات API دستیار هوشمند
 API_URL = "https://text.pollinations.ai/"
 SYSTEM_PROMPT = """
@@ -305,17 +313,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.set_message_reaction(
             chat_id=chat_id,
             message_id=message_id,
-            reaction=[ReactionTypeEmoji(emoji="🤪")],
+            reaction=[ReactionTypeEmoji(emoji="👋")],
             is_big=True
         )
 
-        keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
+        keyboard = [
+            ["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], 
+            ["🔊 نمونه صدا و حس ها"],
+            ["🔙 برگشت"]
+        ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
-            f"🎙 سلام {user_fullname}! به ربات تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
-            "من می‌توانم متن شما را با هر حس و صدایی که انتخاب کنید، به گفتار تبدیل کنم یا به‌عنوان دستیار هوشمند به سوالات شما پاسخ دهم.\n"
-            "برای شروع، یکی از دکمه‌های زیر را انتخاب کنید:",
-            reply_markup=reply_markup
+            f"✨ <b>سلام {user_fullname} عزیز!</b> ✨\n\n"
+            "🎵 به ربات پیشرفته تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
+            "📌 <b>با این ربات می‌توانید:</b>\n"
+            "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
+            "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
+            "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n"
+            "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
+            reply_markup=reply_markup,
+            parse_mode="HTML"
         )
         context.user_data.clear()
         context.user_data["state"] = "main"
@@ -474,9 +491,64 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if current_state == "main":
             await update.message.reply_text(
-                "شما در صفحه اصلی هستید!",
-                reply_markup=ReplyKeyboardMarkup([["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]], resize_keyboard=True)
+                "✅ شما در صفحه اصلی هستید!",
+                reply_markup=ReplyKeyboardMarkup([
+                    ["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"],
+                    ["🔊 نمونه صدا و حس ها"],
+                    ["🔙 برگشت"]
+                ], resize_keyboard=True)
             )
+            return None
+        
+        if previous_state == "main" or current_state == "assistant":
+            # Clear conversation history when going back to main menu
+            if "conversation_history" in context.user_data:
+                context.user_data["conversation_history"] = []
+            return await start(update, context)
+        
+        # Handle back button for sample voice flow
+        if current_state == "sample_voice":
+            return await start(update, context)
+        
+        if current_state == "sample_tone_category":
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 <b>انتخاب صدا برای نمونه</b>\n\n"
+                "لطفاً یکی از صداهای زیر را انتخاب کنید تا نمونه آن را بشنوید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "sample_voice"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if current_state == "sample_tone":
+            category = context.user_data.get("selected_category")
+            keyboard = [
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎭 <b>انتخاب دسته‌بندی حس و لحن</b>\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "sample_tone_category"
+            context.user_data["previous_state"] = "sample_voice"
             return None
         
         if previous_state == "main" or current_state == "assistant":
@@ -630,9 +702,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
-                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
-                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
-                reply_markup=reply_markup
+                "🎙 <b>تبدیل متن به صدا - انتخاب حس و لحن</b>\n\n"
+                "برای شروع فرآیند تبدیل متن به صدا، ابتدا نیاز است حس و لحن مناسب را انتخاب کنید.\n"
+                "لحن مناسب باعث می‌شود صدای تولید شده طبیعی‌تر و تاثیرگذارتر شود.\n\n"
+                "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
             )
             context.user_data["state"] = "select_tone_category"
             context.user_data["previous_state"] = "main"
@@ -648,8 +723,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Mensaje inicial del asistente
             greeting_message = await update.message.reply_text(
-                "سلام! من ربات دستیار متن به صدا هستم. متن یا تصویر بفرستید تا به شما کمک کنم!",
-                reply_markup=reply_markup
+                f"👋 <b>سلام {user_fullname} عزیز!</b>\n\n"
+                "من دستیار هوشمند ربات تبدیل متن به صدا هستم و آماده‌ام تا به شما کمک کنم!\n\n"
+                "🔹 <b>چطور می‌توانم کمکتان کنم؟</b>\n"
+                "• سوالات خود درباره تبدیل متن به صدا را بپرسید\n"
+                "• راهنمایی درباره انتخاب حس و لحن مناسب بخواهید\n"
+                "• تصویر ارسال کنید تا آن را تحلیل کنم\n"
+                "• پیشنهاد متن مناسب برای صداگذاری بخواهید\n\n"
+                "منتظر پیام شما هستم... 💬",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
             )
             
             # Intentar añadir una reacción de saludo al mensaje
@@ -671,12 +754,42 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data["conversation_history"] = []
                 
             # Add system welcome message to history
-            welcome_msg = "سلام! من ربات دستیار متن به صدا هستم. متن یا تصویر بفرستید تا به شما کمک کنم!"
+            welcome_msg = f"سلام {user_fullname} عزیز! من دستیار هوشمند ربات تبدیل متن به صدا هستم و آماده‌ام تا به شما کمک کنم!"
             context.user_data["conversation_history"].append({"role": "assistant", "content": welcome_msg})
             
             return None
         except Exception as e:
             logger.error(f"خطا در ارسال پیام برای دستیار هوشمند برای کاربر {user_id}: {str(e)}")
+            return None
+
+    # Handle new button - Voice and Feeling Samples
+    if text == "🔊 نمونه صدا و حس ها":
+        try:
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 <b>نمونه صدا و حس - انتخاب صدا</b>\n\n"
+                "به بخش نمونه صدا و حس خوش آمدید!\n"
+                "در این بخش می‌توانید نمونه‌هایی از صداها و حس‌های مختلف را بشنوید تا بهترین انتخاب را داشته باشید.\n\n"
+                "📌 <b>لطفاً ابتدا یکی از صداها را انتخاب کنید:</b>",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "sample_voice"
+            context.user_data["previous_state"] = "main"
+            return None
+        except Exception as e:
+            logger.error(f"خطا در نمایش منوی نمونه صداها برای کاربر {user_id}: {str(e)}")
             return None
 
     if "state" in context.user_data:
@@ -975,6 +1088,199 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True),
                 reply_to_message_id=message_id
             )
+            return None
+
+        # Handle sample voice selection
+        elif context.user_data["state"] == "sample_voice":
+            voice_persian = text
+            if voice_persian in PERSIAN_TO_ORIGINAL_VOICE:
+                voice = PERSIAN_TO_ORIGINAL_VOICE[voice_persian]
+                context.user_data["sample_voice"] = voice
+                context.user_data["sample_voice_persian"] = voice_persian
+                context.user_data["state"] = "sample_tone_category"
+                context.user_data["previous_state"] = "sample_voice"
+                
+                keyboard = [
+                    ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                    ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                    ["🔙 برگشت"]
+                ]
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                await update.message.reply_text(
+                    f"🎙 <b>صدای انتخاب شده: {voice_persian}</b>\n\n"
+                    "عالی! حالا لطفاً یکی از دسته‌بندی‌های حس و لحن را انتخاب کنید:",
+                    reply_markup=reply_markup,
+                    parse_mode="HTML"
+                )
+                return None
+            else:
+                await update.message.reply_text(
+                    "❌ لطفاً یک صدای معتبر از لیست انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+                
+        # Handle sample tone category selection
+        elif context.user_data["state"] == "sample_tone_category":
+            category_map = {
+                "📢 لحن‌های کاربردی": "functional",
+                "👑 لحن‌های نمایشی / شخصیتی": "character_affects",
+                "🎤 لحن‌های گفتاری": "voice_styles",
+                "🎭 لحن‌های احساسی": "emotional"
+            }
+            
+            if text in category_map:
+                category = category_map[text]
+                context.user_data["sample_category"] = category
+                tones = TONES[category]
+                
+                keyboard = []
+                for i in range(0, len(tones), 2):
+                    row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                    if i + 1 < len(tones):
+                        row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                category_names = {
+                    "emotional": "لحن‌های احساسی",
+                    "voice_styles": "لحن‌های گفتاری",
+                    "character_affects": "لحن‌های نمایشی / شخصیتی",
+                    "functional": "لحن‌های کاربردی"
+                }
+                
+                await update.message.reply_text(
+                    f"🎭 <b>دسته‌بندی انتخاب شده: {category_names[category]}</b>\n\n"
+                    "لطفاً یکی از حس‌های زیر را انتخاب کنید تا نمونه صدا را بشنوید:",
+                    reply_markup=reply_markup,
+                    parse_mode="HTML"
+                )
+                
+                context.user_data["state"] = "sample_tone"
+                context.user_data["previous_state"] = "sample_tone_category"
+                return None
+            else:
+                await update.message.reply_text(
+                    "❌ لطفاً یکی از دسته‌بندی‌های موجود را انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+                
+        # Handle sample tone selection and send audio sample
+        elif context.user_data["state"] == "sample_tone":
+            category = context.user_data.get("sample_category")
+            voice = context.user_data.get("sample_voice")
+            voice_persian = context.user_data.get("sample_voice_persian")
+            
+            if not category or not voice:
+                await update.message.reply_text(
+                    "❌ مشکلی در فرآیند انتخاب پیش آمد. لطفاً دوباره تلاش کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+                
+            tones = TONES[category]
+            selected_tone = None
+            
+            for tone in tones:
+                if f"{tone['emoji']} {tone['name']}" == text:
+                    selected_tone = tone
+                    break
+                    
+            if not selected_tone:
+                await update.message.reply_text(
+                    "❌ لطفاً یک حس معتبر از لیست انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+                
+            # Get sample text for this category
+            sample_text = SAMPLE_TEXTS[category]
+            feeling_prompt = selected_tone["prompt"]
+            tone_name = selected_tone["name"]
+            
+            # Prepare to generate sample audio
+            await update.message.reply_text(
+                f"🔊 <b>در حال تولید نمونه صدا...</b>\n\n"
+                f"• <b>صدا:</b> {voice_persian}\n"
+                f"• <b>حس:</b> {tone_name}\n\n"
+                "لطفاً چند لحظه صبر کنید...",
+                parse_mode="HTML"
+            )
+            
+            # Show progress message with animated indicator
+            progress_message = await update.message.reply_text("در حال آماده‌سازی... ⏳")
+            
+            try:
+                await progress_message.edit_text("در حال پردازش متن... 🔍")
+                await asyncio.sleep(1)
+                
+                # Show progress bar for better UX
+                progress_duration = 4
+                step_duration = progress_duration / 20
+                for percentage in range(0, 101, 5):
+                    try:
+                        await progress_message.edit_text(
+                            f"در حال تولید نمونه صدا 🎙\n{create_progress_bar(percentage)}"
+                        )
+                    except Exception as e:
+                        logger.error(f"خطا در به‌روزرسانی پروگرس بار ({percentage}%) برای کاربر {user_id}: {str(e)}")
+                    await asyncio.sleep(step_duration)
+                
+                # Generate unique file name for this sample
+                output_file = f"sample_{uuid4()}.mp3"
+                
+                # Generate audio using our existing function
+                success = generate_audio(sample_text, feeling_prompt, voice, output_file, "mp3")
+                
+                if success:
+                    try:
+                        with open(output_file, "rb") as audio:
+                            await update.message.reply_audio(
+                                audio=audio,
+                                caption=f"🎙 <b>نمونه صدا</b>\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {tone_name}",
+                                title=f"نمونه صدای {voice_persian} - {tone_name}",
+                                parse_mode="HTML"
+                            )
+                        
+                        # Delete temp file after sending
+                        os.remove(output_file)
+                        
+                        # Update progress message
+                        await progress_message.edit_text(
+                            "✅ نمونه صدا با موفقیت ارسال شد!\n\n"
+                            "می‌توانید حس و صدای دیگری را انتخاب کنید یا به منوی اصلی بازگردید."
+                        )
+                        
+                        # Keep the same state to allow further selections
+                        return None
+                        
+                    except Exception as e:
+                        logger.error(f"خطا در ارسال فایل صوتی نمونه برای کاربر {user_id}: {str(e)}")
+                        await progress_message.edit_text(
+                            "❌ خطا در ارسال فایل صوتی. لطفاً دوباره تلاش کنید."
+                        )
+                        
+                        # Remove temp file if it exists
+                        try:
+                            if os.path.exists(output_file):
+                                os.remove(output_file)
+                        except Exception:
+                            pass
+                            
+                else:
+                    await progress_message.edit_text(
+                        "❌ خطا در تولید نمونه صدا. لطفاً دوباره تلاش کنید."
+                    )
+                    
+            except Exception as e:
+                logger.error(f"خطا در فرآیند تولید نمونه صدا برای کاربر {user_id}: {str(e)}")
+                await update.message.reply_text(
+                    "❌ متأسفانه مشکلی در تولید نمونه صدا پیش آمد. لطفاً دوباره تلاش کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                
             return None
 
 # Initialize the Telegram application
