@@ -36,6 +36,7 @@ API_URL = "https://text.pollinations.ai/"
 SYSTEM_PROMPT = """
 شما یک دستیار هوشمند پیشرفته برای ربات تبدیل متن به صدا هستید. وظایف و ویژگی‌های شما:
 با لحن خودمونی و نسل Z حرف بزن یا ایموجی های مناسب
+از نام کاربر در پاسخ‌های خود استفاده کنید تا تجربه شخصی‌تری ایجاد کنید.
 
 1. راهنمایی و مشاوره:
 - کمک به کاربران در انتخاب متن‌های مناسب برای تبدیل به صدا
@@ -163,7 +164,7 @@ async def webhook(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 # تابع برای ارسال درخواست به API دستیار هوشمند
-def call_api(prompt, image=None, conversation_history=None, file_url=None):
+def call_api(prompt, image=None, conversation_history=None, file_url=None, user_fullname=None):
     headers = {"Content-Type": "application/json"}
     
     # Prepare messages with conversation history
@@ -174,16 +175,21 @@ def call_api(prompt, image=None, conversation_history=None, file_url=None):
         for msg in conversation_history:
             messages.append(msg)
     
+    # Prepare the user prompt with their name if available
+    user_prompt = prompt
+    if user_fullname:
+        user_prompt = f"نام و نام خانوادگی کاربر: {user_fullname}\nمتن و یا سوال و جواب کاربر: {prompt}\nلطفا به متن جواب بده و از نام کاربر در صورت نیاز در متن استفاده کن"
+    
     # Add current message
     if image is None and file_url is None:
         # Text-only query
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": user_prompt})
     elif file_url is not None:
         # Add image as URL (Medical v6.py style)
         messages.append({
             "role": "user",
             "content": [
-                {"type": "text", "text": prompt},
+                {"type": "text", "text": user_prompt},
                 {"type": "image_url", "image_url": {"url": file_url}}
             ]
         })
@@ -194,7 +200,7 @@ def call_api(prompt, image=None, conversation_history=None, file_url=None):
             image.save(buffered, format="JPEG")
             image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
             # Add the base64 image to messages based on API format
-            messages.append({"role": "user", "content": prompt})
+            messages.append({"role": "user", "content": user_prompt})
             messages.append({"role": "user", "content": {"image": image_base64}})
         except Exception as e:
             logger.error(f"خطا در پردازش تصویر برای API: {str(e)}")
@@ -287,6 +293,10 @@ def create_progress_bar(percentage):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    user = update.effective_user
+    user_fullname = f"{user.first_name} {user.last_name if user.last_name else ''}"
+    user_fullname = user_fullname.strip()
+    
     logger.info(f"دریافت دستور /start از کاربر: {user_id}")
     try:
         # Add reaction to the /start message
@@ -302,7 +312,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
-            "🎙 به ربات تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
+            f"🎙 سلام {user_fullname}! به ربات تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
             "من می‌توانم متن شما را با هر حس و صدایی که انتخاب کنید، به گفتار تبدیل کنم یا به‌عنوان دستیار هوشمند به سوالات شما پاسخ دهم.\n"
             "برای شروع، یکی از دکمه‌های زیر را انتخاب کنید:",
             reply_markup=reply_markup
@@ -325,6 +335,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo = update.message.photo[-1]
     message_id = update.message.message_id
     chat_id = update.message.chat_id
+    
+    # Get user's full name
+    user = update.effective_user
+    user_fullname = f"{user.first_name} {user.last_name if user.last_name else ''}"
+    user_fullname = user_fullname.strip()  # Remove extra spaces if last_name is None
     
     try:
         logger.info(f"پردازش تصویر از کاربر {user_id}")
@@ -400,8 +415,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         for attempt in range(max_retries):
             try:
-                # Use file_url approach (Medical v6.py style)
-                response = call_api(user_caption, file_url=file_url, conversation_history=context.user_data["conversation_history"])
+                # Use file_url approach (Medical v6.py style) and include user's full name
+                response = call_api(user_caption, file_url=file_url, 
+                                   conversation_history=context.user_data["conversation_history"],
+                                   user_fullname=user_fullname)
                 break  # If successful, exit the retry loop
             except Exception as e:
                 logger.error(f"خطا در تحلیل تصویر (تلاش {attempt + 1}/{max_retries}): {str(e)}")
@@ -441,6 +458,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
 
+    # Get user's full name
+    user = update.effective_user
+    user_fullname = f"{user.first_name} {user.last_name if user.last_name else ''}"
+    user_fullname = user_fullname.strip()  # Remove extra spaces if last_name is None
+    
     # Initialize conversation history for new users
     if "conversation_history" not in context.user_data:
         context.user_data["conversation_history"] = []
@@ -928,7 +950,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             for attempt in range(max_retries):
                 try:
-                    response = call_api(text, conversation_history=context.user_data["conversation_history"])
+                    # Include user's full name in API call
+                    response = call_api(text, conversation_history=context.user_data["conversation_history"], user_fullname=user_fullname)
                     break
                 except Exception as e:
                     logger.error(f"خطا در دریافت پاسخ (تلاش {attempt + 1}/{max_retries}): {str(e)}")
