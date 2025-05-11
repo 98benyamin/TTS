@@ -73,6 +73,30 @@ SUPPORTED_VOICES = [
     "coral", "verse", "ballad", "ash", "sage", "amuch", "dan", "elan"
 ]
 
+# نگاشت نام‌های صدا به نام‌های ایرانی
+VOICE_PERSIAN_NAMES = {
+    # صداهای زنانه (Voces femeninas)
+    "alloy": "نیلوفر",
+    "nova": "شیرین",
+    "shimmer": "مهتاب",
+    "coral": "نازنین",
+    "verse": "سارا",
+    "ballad": "پریناز",
+    "ash": "آیدا",
+    "sage": "شیدا",
+    
+    # صداهای مردانه (Voces masculinas)
+    "echo": "علی",
+    "fable": "آرمان",
+    "onyx": "سامان",
+    "amuch": "امید",
+    "dan": "محمد",
+    "elan": "آرش"
+}
+
+# نگاشت معکوس برای یافتن نام اصلی از نام فارسی
+PERSIAN_TO_ORIGINAL_VOICE = {v: k for k, v in VOICE_PERSIAN_NAMES.items()}
+
 # فرمت‌های صوتی پشتیبانی‌شده
 SUPPORTED_FORMATS = ["mp3", "wav", "ogg"]
 
@@ -502,20 +526,32 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return None
         
         if previous_state == "voice":
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
-                "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
-                "مثال: Yeah, yeah, ya got Big Apple Insurance",
-                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
+                reply_markup=reply_markup
             )
-            context.user_data["state"] = "text"
-            context.user_data["previous_state"] = "select_tone" if not context.user_data.get("feeling_manual", False) else "manual_feeling"
+            context.user_data["state"] = "voice"
+            context.user_data["previous_state"] = "text"
             return None
         
         if previous_state == "select_format":
             keyboard = []
             row = []
             for voice in SUPPORTED_VOICES:
-                row.append(voice.capitalize())
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
                 if len(row) == 4:
                     keyboard.append(row)
                     row = []
@@ -682,7 +718,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = []
             row = []
             for voice in SUPPORTED_VOICES:
-                row.append(voice.capitalize())
+                # Mostrar nombre persa con la primera letra en mayúscula
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
                 if len(row) == 4:
                     keyboard.append(row)
                     row = []
@@ -698,23 +736,29 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # دریافت صدا
         elif context.user_data["state"] == "voice":
-            voice = text.lower()
-            if voice not in SUPPORTED_VOICES:
+            voice_persian = text  # Nombre persa seleccionado por el usuario
+            
+            # Comprobar si el nombre persa es válido
+            if voice_persian in PERSIAN_TO_ORIGINAL_VOICE:
+                # Obtener el nombre original de la voz
+                voice = PERSIAN_TO_ORIGINAL_VOICE[voice_persian]
+                context.user_data["voice"] = voice  # Guardar el nombre original para la API
+                context.user_data["voice_persian"] = voice_persian  # Guardar el nombre persa para mostrar
+                context.user_data["state"] = "select_format"
+                context.user_data["previous_state"] = "voice"
+                keyboard = [["MP3", "WAV", "OGG"], ["🔙 برگشت"]]
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                await update.message.reply_text(
+                    "لطفاً فرمت صوتی موردنظر را انتخاب کنید:",
+                    reply_markup=reply_markup
+                )
+                return None
+            else:
                 await update.message.reply_text(
                     "لطفاً یک صدای معتبر از لیست انتخاب کنید.",
                     reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
-            context.user_data["voice"] = voice
-            context.user_data["state"] = "select_format"
-            context.user_data["previous_state"] = "voice"
-            keyboard = [["MP3", "WAV", "OGG"], ["🔙 برگشت"]]
-            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            await update.message.reply_text(
-                "لطفاً فرمت صوتی موردنظر را انتخاب کنید:",
-                reply_markup=reply_markup
-            )
-            return None
         
         # انتخاب فرمت صوتی
         elif context.user_data["state"] == "select_format":
@@ -727,7 +771,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return None
             text = context.user_data["text"]
             instructions = context.user_data["feeling"]
-            voice = context.user_data["voice"]
+            voice = context.user_data["voice"]  # Nombre original para la API
+            voice_persian = context.user_data["voice_persian"]  # Nombre persa para mostrar
             feeling_name = context.user_data["feeling_name"]
             output_file = f"output_{uuid4()}.{audio_format}"
             
@@ -764,7 +809,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     with open(output_file, "rb") as audio:
                         await update.message.reply_audio(
                             audio=audio,
-                            caption=f"🎙 گوینده : {voice.capitalize()}\n🎼 حس صوت : {feeling_name}",
+                            caption=f"🎙 گوینده : {voice_persian}\n🎼 حس صوت : {feeling_name}",
                             title="Generated Audio",
                             reply_markup=ReplyKeyboardRemove()
                         )
