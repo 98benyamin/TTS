@@ -151,6 +151,18 @@ TONES = {
 # ایجاد اپلیکیشن FastAPI
 app = FastAPI()
 
+# Define webhook route for FastAPI
+@app.post("/webhook")
+async def webhook(request: Request):
+    try:
+        data = await request.json()
+        update = Update.de_json(data, application.bot)
+        await application.process_update(update)
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"خطا در پردازش webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # تابع برای ارسال درخواست به API دستیار هوشمند
 def call_api(prompt, image=None, conversation_history=None, file_url=None):
     headers = {"Content-Type": "application/json"}
@@ -943,7 +955,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return None
 
+# Initialize the Telegram application
+# Create the Application outside of the main function
+application = Application.builder().token(TOKEN).build()
+
+# Register handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+
 async def main():
+    """Run the bot."""
     try:
         await application.initialize()
         logger.info("ربات مقداردهی اولیه شد")
@@ -954,23 +976,22 @@ async def main():
     except Exception as e:
         logger.error(f"خطا در راه‌اندازی ربات: {str(e)}")
         raise
-    return application
 
 if __name__ == "__main__":
     try:
         # اجرای ربات و سرور
-        application = asyncio.run(main())
+        asyncio.run(main())
         uvicorn.run(app, host="0.0.0.0", port=8080)
     except Exception as e:
         logger.error(f"خطا در اجرای برنامه: {str(e)}")
     finally:
         try:
-            if application.running:
-                logger.info("توقف ربات")
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(application.bot.delete_webhook())
-                loop.run_until_complete(application.stop())
-                loop.close()
+            # No need to check if application.running as application is defined at the module level
+            logger.info("توقف ربات")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(application.bot.delete_webhook())
+            loop.run_until_complete(application.stop())
+            loop.close()
         except Exception as e:
             logger.error(f"خطا در توقف ربات: {str(e)}")
