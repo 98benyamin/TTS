@@ -2,7 +2,7 @@ import requests
 import urllib.parse
 import os
 import asyncio
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, ReactionTypeEmoji
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -198,6 +198,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logger.info(f"دریافت دستور /start از کاربر: {user_id}")
     try:
+        # Add reaction to the /start message
+        chat_id = update.message.chat_id
+        message_id = update.message.message_id
+        await context.bot.set_message_reaction(
+            chat_id=chat_id,
+            message_id=message_id,
+            reaction=[ReactionTypeEmoji(emoji="🤪")],
+            is_big=False
+        )
+
         keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text(
