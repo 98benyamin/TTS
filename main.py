@@ -193,7 +193,7 @@ def call_api(prompt, image=None, conversation_history=None, file_url=None):
 def process_image(image_data):
     return Image.open(io.BytesIO(image_data))
 
-def generate_audio(text, instructions, voice, output_file, audio_format="ogg"):
+def generate_audio(text, instructions, voice, output_file, audio_format="mp3"):
     logger.info(f"تولید صدا با متن: {text[:50]}..., حس: {instructions[:50]}..., صدا: {voice}, فرمت: {audio_format}")
     if voice not in SUPPORTED_VOICES:
         logger.error(f"صدا {voice} پشتیبانی نمی‌شود")
@@ -201,13 +201,6 @@ def generate_audio(text, instructions, voice, output_file, audio_format="ogg"):
     if audio_format not in SUPPORTED_FORMATS:
         logger.error(f"فرمت {audio_format} پشتیبانی نمی‌شود")
         return False
-    
-    # اگر در حالت دستیار هوشمند هستیم، همیشه از فرمت OGG استفاده کنیم
-    if "assistant" in output_file:
-        audio_format = "ogg"
-        # اطمینان از اینکه پسوند فایل هم درست است
-        if not output_file.endswith(".ogg"):
-            output_file = output_file.rsplit(".", 1)[0] + ".ogg"
     
     prompt = (
         f"Deliver the following text with the feeling described below:\n"
@@ -323,28 +316,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "content": f"تصویر با کپشن: {user_caption}"
         })
         
-        # Create a progress update task to show the AI is working
-        try:
-            await processing_message.edit_text("در حال آنالیز تصویر 🔍")
-            await asyncio.sleep(1)
-            await processing_message.edit_text("در حال تحلیل و پردازش 🧠")
-            
-            # Show progress bar
-            progress_duration = 5  # seconds
-            step_duration = progress_duration / 20
-            for percentage in range(0, 101, 5):
-                try:
-                    await processing_message.edit_text(
-                        f"در حال تحلیل تصویر 🧠\n{create_progress_bar(percentage)}"
-                    )
-                    await asyncio.sleep(step_duration)
-                except Exception as e:
-                    logger.warning(f"خطا در به‌روزرسانی پیشرفت ({percentage}%): {str(e)}")
-                    
-            await processing_message.edit_text("در حال دریافت نتایج تحلیل...")
-        except Exception as e:
-            logger.warning(f"خطا در به‌روزرسانی پیام پردازش: {str(e)}")
-            # Continue despite progress bar errors
+        # ابتدا درخواست API را انجام می‌دهیم (قبل از نمایش پروگرس بار)
+        await processing_message.edit_text("🔍 در حال تحلیل تصویر...")
         
         # API call with retry mechanism
         max_retries = 2
@@ -366,6 +339,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "role": "assistant", 
             "content": response
         })
+        
+        # حالا پروگرس بار را نمایش می‌دهیم (فقط برای نمایش)
+        try:
+            # آپدیت پیام پردازش
+            progress_duration = 3  # ثانیه
+            step_duration = progress_duration / 20
+            for percentage in range(0, 101, 5):
+                try:
+                    await processing_message.edit_text(
+                        f"🧠 در حال تحلیل نهایی تصویر...\n{create_progress_bar(percentage)}"
+                    )
+                    await asyncio.sleep(step_duration)
+                except Exception as e:
+                    logger.warning(f"خطا در به‌روزرسانی پیشرفت ({percentage}%): {str(e)}")
+                    
+            await processing_message.edit_text("✅ تحلیل تصویر به پایان رسید.")
+        except Exception as e:
+            logger.warning(f"خطا در به‌روزرسانی پیام پردازش: {str(e)}")
+            # Continue despite progress bar errors
         
         # Update processing message with the response
         try:
@@ -563,20 +555,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             keyboard = [["🔙 برگشت"]]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            welcome_message = (
-                "سلام! من ربات دستیار متن به صدا هستم. می‌توانم به شما در موارد زیر کمک کنم:\n\n"
-                "• *متن و تصویر* را تحلیل کنم\n"
-                "• *متن را به صدا* تبدیل کنم\n"
-                "• *نمونه‌های صدا* را برایتان ارسال کنم\n"
-                "• *نمونه‌های حس و لحن* را نمایش دهم\n\n"
-                "برای استفاده از خدمات متن به صدا، میتوانید از عبارات زیر استفاده کنید:\n"
-                "- تبدیل به صدا: [متن شما]\n"
-                "- نمونه صدای [نام صدا]\n"
-                "- نمونه حس [نام حس]\n\n"
-                "متن یا تصویر خود را ارسال کنید یا از دستورات بالا استفاده کنید!"
-            )
             await update.message.reply_text(
-                welcome_message,
+                "سلام! من ربات دستیار متن به صدا هستم. متن یا تصویر بفرستید تا به شما کمک کنم!",
                 reply_markup=reply_markup
             )
             context.user_data["state"] = "assistant"
@@ -587,7 +567,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data["conversation_history"] = []
                 
             # Add system welcome message to history
-            context.user_data["conversation_history"].append({"role": "assistant", "content": welcome_message})
+            welcome_msg = "سلام! من ربات دستیار متن به صدا هستم. متن یا تصویر بفرستید تا به شما کمک کنم!"
+            context.user_data["conversation_history"].append({"role": "assistant", "content": welcome_msg})
             
             return None
         except Exception as e:
@@ -834,134 +815,35 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if "conversation_history" not in context.user_data:
                 context.user_data["conversation_history"] = []
             
-            # تشخیص درخواست تبدیل متن به صدا
-            voice_intent = detect_voice_intent(text)
-            
-            if voice_intent["intent"] == "convert":
-                # درخواست تبدیل متن به صدا
-                if voice_intent["text"]:
-                    # متن برای تبدیل ارائه شده است
-                    await convert_user_text_to_speech(
-                        voice_intent["text"], 
-                        context, 
-                        update.message.chat_id
-                    )
-                    # اضافه کردن پاسخ به تاریخچه مکالمه
-                    context.user_data["conversation_history"].append({"role": "user", "content": text})
-                    context.user_data["conversation_history"].append({
-                        "role": "assistant", 
-                        "content": f"متن شما به صدا تبدیل شد. فایل صوتی با متن: '{voice_intent['text']}' ارسال شد."
-                    })
-                else:
-                    # متن برای تبدیل ارائه نشده
-                    await update.message.reply_text(
-                        "لطفاً متنی که می‌خواهید به صدا تبدیل شود را وارد کنید.\n"
-                        "مثال: 'این متن را به صدا تبدیل کن: سلام، این یک پیام نمونه است.'",
-                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-                    )
-                    # اضافه کردن پاسخ به تاریخچه مکالمه
-                    context.user_data["conversation_history"].append({"role": "user", "content": text})
-                    context.user_data["conversation_history"].append({
-                        "role": "assistant", 
-                        "content": "لطفاً متنی که می‌خواهید به صدا تبدیل شود را وارد کنید."
-                    })
-                return None
+            # تشخیص درخواست‌های مرتبط با تبدیل به صدا
+            intent = detect_tts_intent(text)
+            if intent:
+                # پردازش درخواست‌های خاص دستیار صوتی
+                if intent["type"] == "tts":
+                    # درخواست تبدیل متن به صدا
+                    success = await process_tts_in_assistant(update, context, text)
+                    if success:
+                        # اضافه کردن به تاریخچه مکالمه
+                        context.user_data["conversation_history"].append({"role": "user", "content": text})
+                        context.user_data["conversation_history"].append({"role": "assistant", "content": "✅ متن به صدا تبدیل شد و برای شما ارسال شد."})
+                        return None
                 
-            elif voice_intent["intent"] == "voice_sample":
-                # درخواست نمونه صدا
-                if voice_intent["voice"]:
-                    # صدای خاصی درخواست شده
-                    await generate_voice_sample(voice_intent["voice"], context, update.message.chat_id)
+                elif intent["type"] == "voice_demo":
+                    # درخواست نمونه صدا
+                    await send_voice_demo(update, context)
                     # اضافه کردن به تاریخچه مکالمه
                     context.user_data["conversation_history"].append({"role": "user", "content": text})
-                    context.user_data["conversation_history"].append({
-                        "role": "assistant", 
-                        "content": f"نمونه صدای {voice_intent['voice']} برای شما ارسال شد."
-                    })
-                else:
-                    # لیست همه صداها را نمایش بده
-                    voices_message = "صداهای موجود:\n\n"
-                    for voice in SUPPORTED_VOICES:
-                        voices_message += f"• {voice.capitalize()}\n"
-                    
-                    voices_message += "\nبرای شنیدن نمونه صدا، بنویسید: 'نمونه صدای [نام صدا]'"
-                    
-                    await update.message.reply_text(
-                        voices_message,
-                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-                    )
-                    
-                    # ارسال یک نمونه صدای پیش‌فرض
-                    default_voice = "alloy"
-                    await generate_voice_sample(default_voice, context, update.message.chat_id)
-                    
-                    # اضافه کردن به تاریخچه مکالمه
-                    context.user_data["conversation_history"].append({"role": "user", "content": text})
-                    context.user_data["conversation_history"].append({
-                        "role": "assistant", 
-                        "content": voices_message + f"\n\nنمونه صدای {default_voice} به‌عنوان مثال ارسال شد."
-                    })
-                return None
+                    context.user_data["conversation_history"].append({"role": "assistant", "content": "نمونه صداها برای شما ارسال شد."})
+                    return None
                 
-            elif voice_intent["intent"] == "tone_sample":
-                # درخواست نمونه حس/لحن
-                if voice_intent["tone"]:
-                    # حس خاصی درخواست شده
-                    await generate_tone_sample(
-                        voice_intent["tone"], 
-                        voice_intent["prompt"], 
-                        context, 
-                        update.message.chat_id
-                    )
+                elif intent["type"] == "feeling_demo":
+                    # درخواست نمونه حس
+                    await send_feeling_demo(update, context)
                     # اضافه کردن به تاریخچه مکالمه
                     context.user_data["conversation_history"].append({"role": "user", "content": text})
-                    context.user_data["conversation_history"].append({
-                        "role": "assistant", 
-                        "content": f"نمونه حس {voice_intent['tone']} برای شما ارسال شد."
-                    })
-                else:
-                    # لیست کلی حس‌ها را نمایش بده
-                    tones_message = "دسته‌بندی‌های حس موجود:\n\n"
-                    
-                    for category, tones in TONES.items():
-                        category_names = {
-                            "emotional": "لحن‌های احساسی",
-                            "voice_styles": "لحن‌های گفتاری",
-                            "character_affects": "لحن‌های نمایشی / شخصیتی",
-                            "functional": "لحن‌های کاربردی"
-                        }
-                        
-                        tones_message += f"**{category_names[category]}**:\n"
-                        for tone in tones[:3]:  # نمایش 3 مورد اول از هر دسته
-                            tones_message += f"• {tone['emoji']} {tone['name']}\n"
-                        tones_message += "و موارد دیگر...\n\n"
-                    
-                    tones_message += "برای شنیدن نمونه حس، بنویسید: 'نمونه حس [نام حس]'"
-                    
-                    await update.message.reply_text(
-                        tones_message,
-                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-                    )
-                    
-                    # ارسال یک نمونه حس پیش‌فرض
-                    default_category = "emotional"
-                    default_tone = TONES[default_category][0]
-                    await generate_tone_sample(
-                        default_tone["name"], 
-                        default_tone["prompt"], 
-                        context, 
-                        update.message.chat_id
-                    )
-                    
-                    # اضافه کردن به تاریخچه مکالمه
-                    context.user_data["conversation_history"].append({"role": "user", "content": text})
-                    context.user_data["conversation_history"].append({
-                        "role": "assistant", 
-                        "content": tones_message + f"\n\nنمونه حس {default_tone['name']} به‌عنوان مثال ارسال شد."
-                    })
-                return None
+                    context.user_data["conversation_history"].append({"role": "assistant", "content": "نمونه حس‌ها برای شما ارسال شد."})
+                    return None
             
-            # درخواست معمولی به دستیار هوشمند
             context.user_data["conversation_history"].append({"role": "user", "content": text})
             
             # Keep conversation history to a reasonable size
@@ -1085,262 +967,248 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(f"خطا در توقف ربات: {str(e)}")
 
-# تشخیص درخواست‌های مربوط به تبدیل متن به صدا
-def detect_voice_intent(text):
-    """تشخیص نوع درخواست کاربر در رابطه با تبدیل متن به صدا"""
+# تابع تشخیص درخواست‌های تبدیل متن به صدا
+def detect_tts_intent(text):
+    """تشخیص درخواست‌های مرتبط با تبدیل متن به صدا"""
     text = text.strip().lower()
     
-    # درخواست تبدیل متن به صدا
-    convert_patterns = [
-        "تبدیل متن به صدا", "تبدیل به صدا", "صدا کن", "به صدا تبدیل کن",
-        "با صدا بخون", "بخون", "متن را به صدا تبدیل کن", "تبدیل کن به صدا"
+    # کلمات کلیدی برای تشخیص درخواست تبدیل به صدا
+    tts_keywords = [
+        "تبدیل به صدا", "تبدیل به گفتار", "به صدا تبدیل کن",
+        "صدا کن", "به صدا تبدیل", "voice", "audio", "به صدا", "تبدیلش کن"
     ]
     
-    # درخواست شنیدن نمونه صداها
-    voice_sample_patterns = [
-        "نمونه صدا", "صداهای نمونه", "مثال صدا", "دمو صدا", "نمونه صداها",
-        "صداهای دمو", "صدا های دمو", "صدا ها را بشنوم", "صداها را بشنوم", "صداها چطور هستند"
+    # کلمات کلیدی برای درخواست نمونه صدا
+    voice_demo_keywords = [
+        "نمونه صدا", "مثال صدا", "دمو صدا", "صداها چطور", "صداها چگونه",
+        "نمونه", "دمو", "مثال", "نمونه صداها", "صداهات", "صداهای"
     ]
     
-    # درخواست شنیدن نمونه حس‌ها (تن صدا)
-    tone_sample_patterns = [
-        "نمونه حس", "حس های صدا", "نمونه لحن", "لحن های صدا", "مثال حس",
-        "تن صدا", "حس ها چطور هستند", "لحن ها چطوری هستند", "احساس صدا"
+    # کلمات کلیدی برای توضیح حس‌ها
+    feeling_demo_keywords = [
+        "نمونه حس", "مثال حس", "حس‌ها چطور", "حس‌ها چگونه",
+        "لحن‌ها", "لحن‌های", "حس", "حس‌ها", "نمونه لحن", "مثال لحن"
     ]
     
     # تشخیص نوع درخواست
-    for pattern in convert_patterns:
-        if pattern in text:
-            # استخراج متن برای تبدیل
-            original_text = text.replace(pattern, "").strip()
-            if original_text:
-                return {"intent": "convert", "text": original_text}
+    for keyword in tts_keywords:
+        if keyword in text:
+            return {"type": "tts", "text": text}
+            
+    for keyword in voice_demo_keywords:
+        if keyword in text:
+            return {"type": "voice_demo", "text": text}
+            
+    for keyword in feeling_demo_keywords:
+        if keyword in text:
+            return {"type": "feeling_demo", "text": text}
+            
+    return None
+
+# تابع برای ارسال نمونه صدا
+async def send_voice_demo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ارسال نمونه صدا برای نمایش تفاوت صداها"""
+    try:
+        # متن نمونه برای دمو
+        demo_text = "این یک نمونه صدا است که برای آشنایی شما با این صدا ارسال شده است."
+        
+        # حس ساده برای دمو
+        basic_feeling = "Speak in a clear, neutral tone."
+        
+        # لیست کوتاه از صداهای نمونه (حداکثر 3 صدا برای جلوگیری از اسپم)
+        demo_voices = ["alloy", "nova", "shimmer"]
+        
+        # ارسال پیام انتظار
+        waiting_message = await update.message.reply_text(
+            "🔊 در حال آماده‌سازی نمونه صداها... لطفاً صبر کنید.",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        
+        # ارسال صداهای نمونه
+        for voice in demo_voices:
+            output_file = f"demo_{voice}_{uuid4()}.ogg"
+            
+            # تولید صدا
+            success = generate_audio(demo_text, basic_feeling, voice, output_file, "ogg")
+            
+            if success:
+                # ارسال فایل صوتی
+                with open(output_file, "rb") as audio:
+                    await update.message.reply_audio(
+                        audio=audio,
+                        caption=f"🎙 صدای {voice}",
+                        title=f"نمونه صدای {voice}",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    )
+                # حذف فایل موقت
+                os.remove(output_file)
             else:
-                return {"intent": "convert", "text": None}
-    
-    for pattern in voice_sample_patterns:
-        if pattern in text:
-            voice_name = None
-            # استخراج نام صدا اگر ذکر شده باشد
-            for voice in SUPPORTED_VOICES:
-                if voice in text.lower():
-                    voice_name = voice
-                    break
-            return {"intent": "voice_sample", "voice": voice_name}
-    
-    for pattern in tone_sample_patterns:
-        if pattern in text:
-            tone_name = None
-            # استخراج نام حس اگر ذکر شده باشد
-            for category in TONES:
-                for tone in TONES[category]:
-                    tone_name_lower = tone["name"].lower()
-                    if tone_name_lower in text.lower():
-                        tone_name = tone["name"]
-                        tone_prompt = tone["prompt"]
-                        return {"intent": "tone_sample", "tone": tone_name, "prompt": tone_prompt}
-            return {"intent": "tone_sample", "tone": None}
-    
-    return {"intent": None}
-
-# تولید نمونه صدا برای نمایش به کاربر
-async def generate_voice_sample(voice, context: ContextTypes.DEFAULT_TYPE, chat_id):
-    """تولید یک نمونه صدا برای نمایش به کاربر"""
-    try:
-        # متن نمونه برای نمایش
-        sample_text = f"این یک متن نمونه برای نمایش صدای {voice} است. امیدوارم این صدا برای شما مناسب باشد."
-        
-        # احساس خنثی برای نمایش صدا
-        neutral_feeling = "با لحن طبیعی و معمولی بخوان."
-        
-        # تولید فایل صوتی با فرمت OGG
-        output_file = f"assistant_voice_sample_{voice}_{uuid4()}.ogg"
-        
-        # ارسال پیام وضعیت
-        status_message = await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"🔊 در حال تولید نمونه صدای {voice}...",
-            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
-        )
-        
-        # نمایش پیشرفت تولید صدا
-        progress_duration = 3
-        step_duration = progress_duration / 20
-        for percentage in range(0, 101, 5):
-            try:
-                await status_message.edit_text(
-                    f"🔊 در حال تولید نمونه صدای {voice}...\n{create_progress_bar(percentage)}"
-                )
-                await asyncio.sleep(step_duration)
-            except Exception as e:
-                logger.warning(f"خطا در به‌روزرسانی پیشرفت تولید نمونه صدا: {str(e)}")
-        
-        # تولید فایل صوتی
-        success = generate_audio(sample_text, neutral_feeling, voice, output_file, "ogg")
-        
-        if success:
-            # ارسال فایل صوتی
-            with open(output_file, "rb") as audio:
-                await context.bot.send_audio(
-                    chat_id=chat_id,
-                    audio=audio,
-                    caption=f"🎙 نمونه صدای: {voice.capitalize()}",
-                    title=f"Voice Sample - {voice}",
+                await update.message.reply_text(
+                    f"❌ خطا در تولید نمونه صدای {voice}.",
                     reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
-            
-            # حذف فایل موقت
-            os.remove(output_file)
-            logger.info(f"نمونه صدای {voice} با موفقیت ارسال و حذف شد.")
-            
-            # حذف پیام وضعیت
-            try:
-                await context.bot.delete_message(chat_id=chat_id, message_id=status_message.message_id)
-            except Exception as e:
-                logger.warning(f"خطا در حذف پیام وضعیت: {str(e)}")
-                
-            return True
-        else:
-            await status_message.edit_text(f"❌ خطا در تولید نمونه صدای {voice}.")
-            return False
+        
+        # پاسخ نهایی
+        await waiting_message.delete()
+        await update.message.reply_text(
+            "🎙 نمونه صداها ارسال شد. برای تبدیل متن به صدا، پیامی مانند 'این متن را به صدا تبدیل کن' ارسال کنید.",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        
     except Exception as e:
-        logger.error(f"خطا در تولید نمونه صدا: {str(e)}")
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="❌ خطا در تولید نمونه صدا. لطفاً دوباره امتحان کنید.",
+        logger.error(f"خطا در ارسال نمونه صدا: {str(e)}")
+        await update.message.reply_text(
+            "❌ خطا در تولید نمونه صدا. لطفاً دوباره امتحان کنید.",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
-        return False
 
-# تولید نمونه حس/لحن صدا برای نمایش به کاربر
-async def generate_tone_sample(tone_name, tone_prompt, context: ContextTypes.DEFAULT_TYPE, chat_id, voice="alloy"):
-    """تولید یک نمونه حس/لحن صدا برای نمایش به کاربر"""
+# تابع برای ارسال نمونه حس
+async def send_feeling_demo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ارسال نمونه حس و لحن برای آشنایی کاربر"""
     try:
-        # متن نمونه برای نمایش
-        sample_text = f"این یک متن نمونه برای نمایش حس {tone_name} است. با این حس میتوانید متن‌های خود را جذاب‌تر کنید."
+        # متن نمونه برای دمو
+        demo_text = "این یک نمونه صدا با حس مختلف است تا شما با تأثیر حس بر روی صدا آشنا شوید."
         
-        # تولید فایل صوتی با فرمت OGG
-        output_file = f"assistant_tone_sample_{tone_name}_{uuid4()}.ogg"
+        # استفاده از یک صدای ثابت برای نمایش تفاوت حس‌ها
+        voice = "nova"
         
-        # ارسال پیام وضعیت
-        status_message = await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"🎭 در حال تولید نمونه حس {tone_name}...",
+        # نمونه حس‌های متفاوت
+        demo_feelings = [
+            {"name": "شاد و سرزنده", "prompt": TONES["emotional"][0]["prompt"]},
+            {"name": "غمگین و محزون", "prompt": TONES["emotional"][1]["prompt"]},
+            {"name": "حماسی", "prompt": TONES["character_affects"][1]["prompt"]}
+        ]
+        
+        # ارسال پیام انتظار
+        waiting_message = await update.message.reply_text(
+            "🔊 در حال آماده‌سازی نمونه حس‌ها... لطفاً صبر کنید.",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
         
-        # نمایش پیشرفت تولید صدا
-        progress_duration = 3
-        step_duration = progress_duration / 20
-        for percentage in range(0, 101, 5):
-            try:
-                await status_message.edit_text(
-                    f"🎭 در حال تولید نمونه حس {tone_name}...\n{create_progress_bar(percentage)}"
-                )
-                await asyncio.sleep(step_duration)
-            except Exception as e:
-                logger.warning(f"خطا در به‌روزرسانی پیشرفت تولید نمونه حس: {str(e)}")
-        
-        # تولید فایل صوتی
-        success = generate_audio(sample_text, tone_prompt, voice, output_file, "ogg")
-        
-        if success:
-            # ارسال فایل صوتی
-            with open(output_file, "rb") as audio:
-                await context.bot.send_audio(
-                    chat_id=chat_id,
-                    audio=audio,
-                    caption=f"🎭 نمونه حس: {tone_name}\n🎙 صدا: {voice.capitalize()}",
-                    title=f"Tone Sample - {tone_name}",
+        # ارسال صداهای نمونه با حس‌های مختلف
+        for feeling in demo_feelings:
+            output_file = f"demo_feeling_{uuid4()}.ogg"
+            
+            # تولید صدا با حس مختلف
+            success = generate_audio(demo_text, feeling["prompt"], voice, output_file, "ogg")
+            
+            if success:
+                # ارسال فایل صوتی
+                with open(output_file, "rb") as audio:
+                    await update.message.reply_audio(
+                        audio=audio,
+                        caption=f"🎭 حس: {feeling['name']}",
+                        title=f"نمونه حس {feeling['name']}",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    )
+                # حذف فایل موقت
+                os.remove(output_file)
+            else:
+                await update.message.reply_text(
+                    f"❌ خطا در تولید نمونه حس {feeling['name']}.",
                     reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
-            
-            # حذف فایل موقت
-            os.remove(output_file)
-            logger.info(f"نمونه حس {tone_name} با موفقیت ارسال و حذف شد.")
-            
-            # حذف پیام وضعیت
-            try:
-                await context.bot.delete_message(chat_id=chat_id, message_id=status_message.message_id)
-            except Exception as e:
-                logger.warning(f"خطا در حذف پیام وضعیت: {str(e)}")
-                
-            return True
-        else:
-            await status_message.edit_text(f"❌ خطا در تولید نمونه حس {tone_name}.")
-            return False
+        
+        # پاسخ نهایی
+        await waiting_message.delete()
+        await update.message.reply_text(
+            "🎭 نمونه حس‌ها ارسال شد. برای انتخاب حس خاص هنگام تبدیل متن به صدا، می‌توانید به دکمه 'تبدیل متن به صدا' در منوی اصلی مراجعه کنید.",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        
     except Exception as e:
-        logger.error(f"خطا در تولید نمونه حس: {str(e)}")
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="❌ خطا در تولید نمونه حس. لطفاً دوباره امتحان کنید.",
+        logger.error(f"خطا در ارسال نمونه حس: {str(e)}")
+        await update.message.reply_text(
+            "❌ خطا در تولید نمونه حس. لطفاً دوباره امتحان کنید.",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
-        return False
 
-# تولید صدا از متن کاربر
-async def convert_user_text_to_speech(text, context: ContextTypes.DEFAULT_TYPE, chat_id, voice="alloy", tone_category="emotional", tone_index=0):
-    """تبدیل متن کاربر به صدا"""
+# تابع استخراج متن برای تبدیل به صدا
+def extract_text_for_tts(text, tts_keywords):
+    """استخراج متن اصلی از درخواست تبدیل به صدا"""
+    # حذف کلمات کلیدی از متن
+    for keyword in tts_keywords:
+        text = text.replace(keyword, "").strip()
+    
+    # اگر متن خالی بود، یک متن پیش‌فرض برگردان
+    if not text:
+        return "این یک نمونه متن است که به صدا تبدیل شده است."
+        
+    return text
+
+# تابع تبدیل متن به صدا در بخش دستیار هوشمند
+async def process_tts_in_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE, text):
+    """پردازش درخواست تبدیل متن به صدا در بخش دستیار هوشمند"""
     try:
-        # انتخاب حس پیش‌فرض (اولین حس از دسته احساسی)
-        tone_prompt = TONES[tone_category][tone_index]["prompt"]
-        tone_name = TONES[tone_category][tone_index]["name"]
+        # استخراج متن برای تبدیل
+        tts_keywords = [
+            "تبدیل به صدا", "تبدیل به گفتار", "به صدا تبدیل کن",
+            "صدا کن", "به صدا تبدیل", "voice", "audio", "به صدا", "تبدیلش کن"
+        ]
+        content_text = extract_text_for_tts(text, tts_keywords)
         
-        # تولید فایل صوتی با فرمت OGG
-        output_file = f"assistant_user_text_{uuid4()}.ogg"
+        # انتخاب یک صدای پیش‌فرض
+        voice = "nova"
         
-        # ارسال پیام وضعیت
-        status_message = await context.bot.send_message(
-            chat_id=chat_id,
-            text="🔄 در حال تبدیل متن به صدا...",
+        # انتخاب یک حس پیش‌فرض
+        feeling_prompt = "Speak in a clear, friendly tone."
+        
+        # نام فایل خروجی
+        output_file = f"assistant_tts_{uuid4()}.ogg"
+        
+        # ارسال پیام پروگرس
+        progress_message = await update.message.reply_text(
+            "🔊 در حال تبدیل متن به صدا...",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
         
-        # نمایش پیشرفت تولید صدا
-        progress_duration = 3
-        step_duration = progress_duration / 20
-        for percentage in range(0, 101, 5):
-            try:
-                await status_message.edit_text(
-                    f"🔄 در حال تبدیل متن به صدا...\n{create_progress_bar(percentage)}"
-                )
-                await asyncio.sleep(step_duration)
-            except Exception as e:
-                logger.warning(f"خطا در به‌روزرسانی پیشرفت تبدیل متن به صدا: {str(e)}")
+        # فراخوانی API برای تبدیل متن به صدا قبل از نمایش پروگرس بار
+        success = generate_audio(content_text, feeling_prompt, voice, output_file, "ogg")
         
-        # تولید فایل صوتی
-        success = generate_audio(text, tone_prompt, voice, output_file, "ogg")
-        
+        # نمایش پروگرس بار
         if success:
+            # آپدیت پیام پردازش
+            progress_duration = 3  # ثانیه
+            step_duration = progress_duration / 20
+            for percentage in range(0, 101, 5):
+                try:
+                    await progress_message.edit_text(
+                        f"🔊 در حال پردازش و آماده‌سازی صدا...\n{create_progress_bar(percentage)}"
+                    )
+                    await asyncio.sleep(step_duration)
+                except Exception as e:
+                    logger.warning(f"خطا در به‌روزرسانی پیشرفت ({percentage}%): {str(e)}")
+            
+            # آپدیت پیام نهایی
+            await progress_message.edit_text("✅ تبدیل انجام شد. در حال ارسال فایل صوتی...")
+            
             # ارسال فایل صوتی
             with open(output_file, "rb") as audio:
-                await context.bot.send_audio(
-                    chat_id=chat_id,
+                await update.message.reply_audio(
                     audio=audio,
-                    caption=f"🎙 صدا: {voice.capitalize()}\n🎭 حس: {tone_name}",
+                    caption=f"🎙 صدا: {voice}\n🔊 متن تبدیل شده به صدا",
                     title="Text to Speech",
                     reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
             
+            # پاک کردن پیام پروگرس
+            await progress_message.delete()
+            
             # حذف فایل موقت
             os.remove(output_file)
-            logger.info(f"تبدیل متن به صدا با موفقیت انجام شد.")
             
-            # حذف پیام وضعیت
-            try:
-                await context.bot.delete_message(chat_id=chat_id, message_id=status_message.message_id)
-            except Exception as e:
-                logger.warning(f"خطا در حذف پیام وضعیت: {str(e)}")
-                
             return True
         else:
-            await status_message.edit_text("❌ خطا در تبدیل متن به صدا.")
+            await progress_message.edit_text(
+                "❌ خطا در تبدیل متن به صدا. لطفاً دوباره امتحان کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
             return False
+            
     except Exception as e:
         logger.error(f"خطا در تبدیل متن به صدا: {str(e)}")
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="❌ خطا در تبدیل متن به صدا. لطفاً دوباره امتحان کنید.",
+        await update.message.reply_text(
+            "❌ خطا در تبدیل متن به صدا. لطفاً دوباره امتحان کنید.",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
         return False
