@@ -186,7 +186,7 @@ def call_api(prompt, image=None, conversation_history=None, file_url=None, user_
     # Prepare the user prompt with their name if available
     user_prompt = prompt
     if user_fullname:
-        user_prompt = f"نام و نام خانوادگی کاربر: {user_fullname}\nمتن و یا سوال و جواب کاربر: {prompt}\nلطفا به متن جواب بده و از نام کاربر در صورت نیاز در متن استفاده کن"
+        user_prompt = f"نام و نام خانوادگی کاربر: {user_fullname}\nمتن و یا سوال و جواب کاربر: {prompt}\nلطفا به متن جواب بده و از نام کاربر اگر انگلیسی بود به فارسی تبدیل کن و در صورت نیاز در متن استفاده کن"
     
     # Add current message
     if image is None and file_url is None:
@@ -314,7 +314,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.set_message_reaction(
                 chat_id=chat_id,
                 message_id=message_id,
-                reaction=[ReactionTypeEmoji(emoji="👍")],
+                reaction=[ReactionTypeEmoji(emoji="😎")],
                 is_big=True
             )
         except Exception as e:
@@ -366,7 +366,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"پردازش تصویر از کاربر {user_id}")
         
         # Use valid emojis for reactions (👍 or ❤️)
-        valid_reaction_emojis = ["👍", "❤️"]
+        valid_reaction_emojis = ["🤨", "🤔"]
         selected_emoji = random.choice(valid_reaction_emojis)
         
         try:
