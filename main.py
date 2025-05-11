@@ -172,7 +172,7 @@ async def webhook(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 # تابع برای ارسال درخواست به API دستیار هوشمند
-def call_api(prompt, image=None, conversation_history=None, file_url=None, user_fullname=None):
+def call_api(prompt, image=None, conversation_history=None, file_url=None, user_fullname=None, seed=None):
     headers = {"Content-Type": "application/json"}
     
     # Prepare messages with conversation history
@@ -219,6 +219,10 @@ def call_api(prompt, image=None, conversation_history=None, file_url=None, user_
         "messages": messages,
         "vision": True
     }
+    
+    # Add seed if provided for response variation
+    if seed is not None:
+        payload["seed"] = seed
 
     try:
         logger.info(f"ارسال درخواست به API: {API_URL}, payload: {payload}")
@@ -1061,14 +1065,22 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.warning(f"خطا در ارسال پیام موقت: {str(e)}")
                 temp_message = None
             
-            # Call API with retry mechanism
+            # Call API with retry mechanism and a random seed for varied responses
             max_retries = 2
             response = None
             
+            # Generate a random seed for variety in responses
+            random_seed = int(uuid4().int % 100000)
+            
             for attempt in range(max_retries):
                 try:
-                    # Include user's full name in API call
-                    response = call_api(text, conversation_history=context.user_data["conversation_history"], user_fullname=user_fullname)
+                    # Include user's full name and random seed in API call
+                    response = call_api(
+                        text, 
+                        conversation_history=context.user_data["conversation_history"], 
+                        user_fullname=user_fullname,
+                        seed=random_seed
+                    )
                     break
                 except Exception as e:
                     logger.error(f"خطا در دریافت پاسخ (تلاش {attempt + 1}/{max_retries}): {str(e)}")
@@ -1199,22 +1211,35 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return None
                 
-            # Get sample text for this category
-            sample_text = SAMPLE_TEXTS[category]
+            # Get tone information
             feeling_prompt = selected_tone["prompt"]
             tone_name = selected_tone["name"]
             
             # Notify user that their request is being processed
             processing_message = await update.message.reply_text(
-                f"🔊 <b>در حال ارسال درخواست به سرور برای تولید صدا...</b>\n\n"
+                f"🔊 <b>در حال تولید متن نمونه و ساخت صدا...</b>\n\n"
                 f"• <b>صدا:</b> {voice_persian}\n"
                 f"• <b>حس:</b> {tone_name}",
                 parse_mode="HTML"
             )
             
             try:
+                # Generate sample text based on the selected tone
+                sample_text = await generate_sample_text(tone_name, feeling_prompt, 200)
+                
                 # Generate unique file name for this sample with OGG format
                 output_file = f"sample_{uuid4()}.ogg"
+                
+                # Update the processing message to show text is ready
+                try:
+                    await processing_message.edit_text(
+                        f"🔊 <b>متن آماده شد، در حال تولید صدا...</b>\n\n"
+                        f"• <b>صدا:</b> {voice_persian}\n"
+                        f"• <b>حس:</b> {tone_name}",
+                        parse_mode="HTML"
+                    )
+                except Exception as e:
+                    logger.warning(f"خطا در به‌روزرسانی پیام پردازش: {str(e)}")
                 
                 # Generate audio using our existing function with OGG format
                 success = generate_audio(sample_text, feeling_prompt, voice, output_file, "ogg")
@@ -1230,7 +1255,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         with open(output_file, "rb") as audio:
                             await update.message.reply_audio(
                                 audio=audio,
-                                caption=f"🎙 <b>نمونه صدا</b>\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {tone_name}",
+                                caption=f"🎙 <b>نمونه صدا</b>\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {tone_name}\n\n<b>متن:</b>\n{sample_text}",
                                 title=f"نمونه صدای {voice_persian} - {tone_name}",
                                 parse_mode="HTML"
                             )
@@ -1269,6 +1294,30 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 
             return None
+
+# تابع برای تولید متن نمونه با توجه به حس انتخاب شده
+async def generate_sample_text(tone_name, tone_prompt, max_length=200):
+    """تولید متن نمونه با توجه به حس انتخاب شده"""
+    try:
+        # ساخت پرامپت برای ایجاد متن متناسب با حس
+        prompt = f"""
+        لطفاً یک متن نمونه کوتاه (حداکثر 200 کاراکتر) با حس "{tone_name}" ایجاد کنید.
+        این متن باید به فارسی باشد و برای نمایش ویژگی‌های این حس مناسب باشد.
+        متن باید طبیعی و روان باشد، مثل یک تکه از یک کتاب، مصاحبه یا گفتگو.
+        فقط متن را بنویسید، بدون هیچ توضیح اضافی.
+        """
+        
+        # فراخوانی API برای تولید متن
+        response = call_api(prompt, seed=int(uuid4().int % 100000))
+        
+        # محدود کردن طول متن به حداکثر تعیین شده
+        if len(response) > max_length:
+            response = response[:max_length] + "..."
+            
+        return response
+    except Exception as e:
+        logger.error(f"خطا در تولید متن نمونه: {str(e)}")
+        return f"نمونه متن با حس {tone_name}. این یک متن کوتاه است که نشان دهنده این حس می‌باشد."
 
 # Initialize the Telegram application
 # Create the Application outside of the main function
