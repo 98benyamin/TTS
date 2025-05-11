@@ -8,7 +8,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # تنظیمات ربات
-TOKEN = "7520523575:AAHNy73MjTRmatJejA96BlaNu0hGHczfYvk"
+TOKEN = "7520523575:AAG787CwUPBFctoJzjETJ6Gk-GxxnF0RaWc"
 WEBHOOK_URL = "https://tts-qroo.onrender.com/webhook"
 REACT_EMOJI = "💊"  # ایموجی واکنش برای پیام /start
 
