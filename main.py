@@ -28,6 +28,7 @@ TOKEN = "7520523575:AAG787CwUPBFctoJzjETJ6Gk-GxxnF0RaWc"
 WEBHOOK_URL = "https://tts-qroo.onrender.com/webhook"
 MAX_TEXT_LENGTH = 1000
 MAX_FEELING_LENGTH = 500
+MAX_HISTORY = 10  # Maximum number of messages to keep in history
 
 # تنظیمات API دستیار هوشمند
 API_URL = "https://text.pollinations.ai/"
@@ -94,14 +95,23 @@ TONES = {
 app = FastAPI()
 
 # تابع برای ارسال درخواست به API دستیار هوشمند
-def call_api(prompt, image=None):
+def call_api(prompt, image=None, conversation_history=None):
     headers = {"Content-Type": "application/json"}
+    
+    # Prepare messages with conversation history
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    
+    # Add conversation history if available
+    if conversation_history:
+        for msg in conversation_history:
+            messages.append(msg)
+    
+    # Add current message
+    messages.append({"role": "user", "content": prompt})
+
     payload = {
         "model": MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ],
+        "messages": messages,
         "vision": True
     }
 
@@ -255,6 +265,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
 
+    # Initialize conversation history for new users
+    if "conversation_history" not in context.user_data:
+        context.user_data["conversation_history"] = []
+
     # مدیریت دکمه برگشت
     if text == "🔙 برگشت":
         current_state = context.user_data.get("state", "main")
@@ -268,6 +282,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return None
         
         if previous_state == "main" or current_state == "assistant":
+            # Clear conversation history when going back to main menu
+            context.user_data["conversation_history"] = []
             return await start(update, context)
         
         if previous_state == "select_tone_category":
@@ -665,7 +681,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # دستیار هوشمند
         elif context.user_data["state"] == "assistant":
-            response = call_api(text)
+            # Add user message to conversation history
+            context.user_data["conversation_history"].append({"role": "user", "content": text})
+            
+            # Keep only the last MAX_HISTORY messages
+            if len(context.user_data["conversation_history"]) > MAX_HISTORY * 2:  # *2 because each exchange has user and assistant messages
+                context.user_data["conversation_history"] = context.user_data["conversation_history"][-MAX_HISTORY * 2:]
+            
+            response = call_api(text, conversation_history=context.user_data["conversation_history"])
+            
+            # Add assistant response to conversation history
+            context.user_data["conversation_history"].append({"role": "assistant", "content": response})
+            
             await update.message.reply_text(
                 response,
                 reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
