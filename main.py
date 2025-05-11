@@ -276,19 +276,46 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo = update.message.photo[-1]
     try:
         logger.info(f"پردازش تصویر از کاربر {user_id}")
+        
+        # Send processing message
+        processing_message = await update.message.reply_text(
+            "🔄 در حال پردازش تصویر و تحلیل آن...",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        
+        # Get the photo file
         photo_file = await photo.get_file()
         image_data = await photo_file.download_as_bytearray()
         image = process_image(image_data)
-        user_caption = update.message.caption or "لطفاً این تصویر را توصیف کنید و متن مناسب برای تبدیل به صدا پیشنهاد دهید."
-        response = call_api(user_caption, image)
-        await update.message.reply_text(
-            response,
+        
+        # Get user caption or use default
+        user_caption = update.message.caption or "لطفاً این تصویر را تحلیل کنید و متن مناسب برای تبدیل به صدا پیشنهاد دهید."
+        
+        # Add to conversation history
+        context.user_data["conversation_history"].append({
+            "role": "user", 
+            "content": f"تصویر با کپشن: {user_caption}"
+        })
+        
+        # Get AI response
+        response = call_api(user_caption, image, context.user_data["conversation_history"])
+        
+        # Add AI response to conversation history
+        context.user_data["conversation_history"].append({
+            "role": "assistant", 
+            "content": response
+        })
+        
+        # Update processing message with the response
+        await processing_message.edit_text(
+            f"✨ تحلیل تصویر:\n\n{response}",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
+        
     except Exception as e:
         logger.error(f"خطا در پردازش تصویر برای کاربر {user_id}: {str(e)}")
         await update.message.reply_text(
-            "مشکلی در پردازش تصویر پیش آمد. لطفاً دوباره امتحان کنید.",
+            "❌ مشکلی در پردازش تصویر پیش آمد. لطفاً دوباره امتحان کنید.",
             reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
     return None
