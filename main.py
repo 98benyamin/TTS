@@ -315,7 +315,7 @@ app = FastAPI()
 
 # Define webhook route for FastAPI
 @app.post("/webhook")
-async def webhook(request: Request):
+async def webhook_post(request: Request):
     try:
         data = await request.json()
         update = Update.de_json(data, application.bot)
@@ -324,6 +324,11 @@ async def webhook(request: Request):
     except Exception as e:
         logger.error(f"خطا در پردازش webhook: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Add HEAD support for webhook (for monitoring)
+@app.head("/webhook")
+async def webhook_head():
+    return {"status": "online"}
 
 # Add a health check endpoint for uptime monitoring
 @app.head("/health")
