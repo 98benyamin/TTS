@@ -325,6 +325,12 @@ async def webhook(request: Request):
         logger.error(f"خطا در پردازش webhook: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Add a health check endpoint for uptime monitoring
+@app.head("/health")
+@app.get("/health")
+async def health_check():
+    return {"status": "online"}
+
 # تابع برای ارسال درخواست به API دستیار هوشمند
 def call_api(prompt, image=None, conversation_history=None, file_url=None, user_fullname=None, seed=None):
     headers = {"Content-Type": "application/json"}
