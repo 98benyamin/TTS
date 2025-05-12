@@ -3,6 +3,7 @@ import urllib.parse
 import os
 import asyncio
 import random
+import time
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, ReactionTypeEmoji, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -20,10 +21,150 @@ from PIL import Image
 import io
 import base64
 import uvicorn
+import threading
 
 # تنظیم لاگینگ
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# تعریف الگوهای پروگرس بار انیمیشنی
+ANIMATED_PROGRESS_FRAMES = [
+    "███□□□███□□□",
+    "□███□□□███□□",
+    "□□███□□□███□",
+    "□□□███□□□███",
+    "█□□□███□□□██",
+    "██□□□███□□□█"
+]
+
+# Task trackers
+API_TASKS = {}
+
+# تابع برای نمایش پروگرس بار به صورت انیمیشن در دکمه شیشه‌ای
+async def show_animated_progress(update: Update, context: ContextTypes.DEFAULT_TYPE, task_id: str, initial_text: str):
+    """نمایش پروگرس بار انیمیشنی در دکمه شیشه‌ای تا زمان دریافت پاسخ از API"""
+    
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("منتظر پاسخ API", callback_data="waiting")]
+    ])
+    
+    # ارسال پیام اولیه با دکمه شیشه‌ای
+    message = await update.message.reply_text(
+        f"{initial_text}\n\n{ANIMATED_PROGRESS_FRAMES[0]}",
+        reply_markup=keyboard
+    )
+    
+    frame_index = 0
+    
+    # تا زمانی که کار API تمام نشده، پروگرس بار را نمایش بده
+    while task_id in API_TASKS and API_TASKS[task_id]["status"] == "running":
+        frame_index = (frame_index + 1) % len(ANIMATED_PROGRESS_FRAMES)
+        
+        try:
+            # بروزرسانی پیام با فریم جدید پروگرس بار
+            await message.edit_text(
+                f"{initial_text}\n\n{ANIMATED_PROGRESS_FRAMES[frame_index]}",
+                reply_markup=keyboard
+            )
+            await asyncio.sleep(0.5)  # تاخیر بین فریم‌های انیمیشن
+        except Exception as e:
+            logger.warning(f"خطا در به‌روزرسانی پروگرس بار: {str(e)}")
+    
+    # پیام نهایی بر اساس نتیجه API
+    result = API_TASKS.pop(task_id, {"status": "error", "result": None})
+    
+    if result["status"] == "completed":
+        await message.delete()
+        return result["result"]
+    else:
+        try:
+            await message.edit_text("❌ خطا در دریافت پاسخ از API. لطفاً دوباره تلاش کنید.")
+        except Exception as e:
+            logger.warning(f"خطا در به‌روزرسانی پیام نهایی: {str(e)}")
+        return None
+
+# تابع برای اجرای همزمان درخواست API
+def run_api_task(task_id, func, *args, **kwargs):
+    """اجرای تابع API در یک ترد جداگانه و ذخیره نتیجه"""
+    try:
+        result = func(*args, **kwargs)
+        API_TASKS[task_id] = {"status": "completed", "result": result}
+    except Exception as e:
+        logger.error(f"خطا در اجرای API: {str(e)}")
+        API_TASKS[task_id] = {"status": "error", "result": None}
+
+# تابع برای تولید نمونه متن با توجه به حس انتخاب شده
+async def generate_sample_text(update: Update, tone_name, tone_prompt, max_length=200):
+    """تولید متن نمونه با توجه به حس انتخاب شده"""
+    try:
+        # ساخت پرامپت برای ایجاد متن متناسب با حس
+        prompt = f"""
+        لطفاً یک متن نمونه کوتاه (حداکثر 200 کاراکتر) با حس "{tone_name}" ایجاد کنید.
+        این متن باید به فارسی باشد و برای نمایش ویژگی‌های این حس مناسب باشد.
+        متن باید طبیعی و روان باشد، مثل یک تکه از یک کتاب، مصاحبه یا گفتگو.
+        فقط متن را بنویسید، بدون هیچ توضیح اضافی.
+        """
+        
+        # ایجاد شناسه یکتا برای این درخواست
+        task_id = f"text_{uuid4().hex}"
+        API_TASKS[task_id] = {"status": "running", "result": None}
+        
+        # شروع درخواست API در یک ترد جداگانه
+        thread = threading.Thread(
+            target=run_api_task,
+            args=(task_id, call_api, prompt),
+            kwargs={"seed": int(uuid4().int % 100000)}
+        )
+        thread.start()
+        
+        # نمایش پروگرس بار تا زمان دریافت پاسخ
+        initial_text = f"🔄 <b>در حال تولید متن نمونه با حس {tone_name}...</b>"
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("در حال پردازش...", callback_data="waiting")]
+        ])
+        
+        message = await update.message.reply_text(
+            f"{initial_text}\n\n{ANIMATED_PROGRESS_FRAMES[0]}",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        
+        frame_index = 0
+        while task_id in API_TASKS and API_TASKS[task_id]["status"] == "running":
+            frame_index = (frame_index + 1) % len(ANIMATED_PROGRESS_FRAMES)
+            try:
+                await message.edit_text(
+                    f"{initial_text}\n\n{ANIMATED_PROGRESS_FRAMES[frame_index]}",
+                    reply_markup=keyboard,
+                    parse_mode="HTML"
+                )
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                logger.warning(f"خطا در به‌روزرسانی پروگرس بار متن: {str(e)}")
+        
+        # دریافت نتیجه درخواست
+        result = API_TASKS.pop(task_id, {"status": "error", "result": None})
+        
+        # حذف پیام پروگرس بار
+        try:
+            await message.delete()
+        except Exception as e:
+            logger.warning(f"خطا در حذف پیام پروگرس بار: {str(e)}")
+        
+        # اگر پاسخی دریافت نشده، متن پیش‌فرض برگردان
+        response = result.get("result")
+        if response is None or len(str(response).strip()) == 0:
+            return f"نمونه متن با حس {tone_name}. این یک متن کوتاه است که نشان دهنده این حس می‌باشد."
+        
+        # محدود کردن طول متن به حداکثر تعیین شده
+        if len(str(response)) > max_length:
+            response = str(response)[:max_length] + "..."
+            
+        return response
+    except Exception as e:
+        logger.error(f"خطا در تولید متن نمونه: {str(e)}")
+        return f"نمونه متن با حس {tone_name}. این یک متن کوتاه است که نشان دهنده این حس می‌باشد."
 
 # تنظیمات ربات
 TOKEN = "7520523575:AAG787CwUPBFctoJzjETJ6Gk-GxxnF0RaWc"
@@ -1054,84 +1195,105 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             output_file = f"output_{uuid4()}.{audio_format}"
             
             try:
-                status_message = await update.message.reply_text("در حال آنالیز متن 🔍")
-                await asyncio.sleep(1.5)
-                await status_message.edit_text("درحال تولید صدا 🎙")
+                # ایجاد شناسه یکتا برای درخواست تولید صدا
+                task_id = f"tts_{uuid4().hex}"
+                API_TASKS[task_id] = {"status": "running", "result": None}
                 
-                progress_duration = 4
-                step_duration = progress_duration / 20
-                for percentage in range(0, 101, 5):
-                    try:
-                        await status_message.edit_text(
-                            f"درحال تولید صدا 🎙\n{create_progress_bar(percentage)}"
-                        )
-                    except Exception as e:
-                        logger.error(f"خطا در به‌روزرسانی پروگرس بار ({percentage}%) برای کاربر {user_id}: {str(e)}")
-                    await asyncio.sleep(step_duration)
+                # نمایش پیام با دکمه شیشه‌ای و پروگرس بار
+                initial_text = f"🔊 <b>در حال تبدیل متن به صدا...</b>\n\n• <b>متن:</b> {text[:50]}{'...' if len(text) > 50 else ''}\n• <b>صدا:</b> {voice_persian}\n• <b>حس:</b> {feeling_name}\n• <b>فرمت:</b> {audio_format.upper()}"
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("در حال پردازش...", callback_data="waiting")]
+                ])
                 
-                await status_message.edit_text("تولید صدا در حال انجام است...")
-                
-            except Exception as e:
-                logger.error(f"خطا در ارسال یا به‌روزرسانی پیام وضعیت برای کاربر {user_id}: {str(e)}")
-                await update.message.reply_text(
-                    "خطا در شروع تولید صدا. لطفاً دوباره امتحان کنید.",
-                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                progress_message = await update.message.reply_text(
+                    f"{initial_text}\n\n{ANIMATED_PROGRESS_FRAMES[0]}",
+                    reply_markup=keyboard,
+                    parse_mode="HTML"
                 )
+                
+                # شروع درخواست API برای تولید صدا در یک ترد جداگانه
+                thread = threading.Thread(
+                    target=run_api_task,
+                    args=(task_id, generate_audio, text, instructions, voice, output_file, audio_format)
+                )
+                thread.start()
+                
+                # نمایش پروگرس بار انیمیشنی تا زمان دریافت پاسخ
+                frame_index = 0
+                while task_id in API_TASKS and API_TASKS[task_id]["status"] == "running":
+                    frame_index = (frame_index + 1) % len(ANIMATED_PROGRESS_FRAMES)
+                    try:
+                        await progress_message.edit_text(
+                            f"{initial_text}\n\n{ANIMATED_PROGRESS_FRAMES[frame_index]}",
+                            reply_markup=keyboard,
+                            parse_mode="HTML"
+                        )
+                        await asyncio.sleep(0.5)
+                    except Exception as e:
+                        logger.warning(f"خطا در به‌روزرسانی پروگرس بار: {str(e)}")
+                
+                # دریافت نتیجه درخواست
+                result = API_TASKS.pop(task_id, {"status": "error", "result": None})
+                success = result["status"] == "completed" and result["result"]
+                
+                # حذف پیام پروگرس بار
+                try:
+                    await progress_message.delete()
+                except Exception as e:
+                    logger.warning(f"خطا در حذف پیام پروگرس بار: {str(e)}")
+                
+                if success:
+                    try:
+                        with open(output_file, "rb") as audio:
+                            await update.message.reply_audio(
+                                audio=audio,
+                                caption=f"🎙 <b>تبدیل متن به صدا</b>\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {feeling_name}\n• <b>فرمت:</b> {audio_format.upper()}",
+                                title=f"صدای تولید شده - {voice_persian}",
+                                parse_mode="HTML"
+                            )
+                        os.remove(output_file)
+                        logger.info(f"فایل صوتی ارسال و حذف شد برای کاربر {user_id}: {output_file}")
+                        
+                        # بازگشت به صفحه اصلی
+                        keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔊 نمونه صدا و حس ها"]]
+                        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                        await update.message.reply_text(
+                            "✅ <b>فایل صوتی با موفقیت تولید شد!</b>\n\n"
+                            "برای تولید صدای جدید یا استفاده از سایر امکانات، یکی از دکمه‌های زیر را انتخاب کنید:",
+                            reply_markup=reply_markup,
+                            parse_mode="HTML"
+                        )
+                        context.user_data.clear()
+                        context.user_data["state"] = "main"
+                            
+                    except Exception as e:
+                        logger.error(f"خطا در ارسال فایل صوتی برای کاربر {user_id}: {str(e)}")
+                        await update.message.reply_text(
+                            "❌ خطا در ارسال فایل صوتی. لطفاً دوباره امتحان کنید.",
+                            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                        )
+                        try:
+                            if os.path.exists(output_file):
+                                os.remove(output_file)
+                        except Exception:
+                            logger.warning(f"ناتوانی در حذف فایل صوتی برای کاربر {user_id}: {output_file}")
+                else:
+                    await update.message.reply_text(
+                        "❌ خطا در تولید صدا. لطفاً مطمئن شوید حس (حداکثر 500 کاراکتر) و متن (حداکثر 1000 کاراکتر) مناسب هستند و صدا پشتیبانی می‌شود.",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    )
+                
                 return None
             
-            success = generate_audio(text, instructions, voice, output_file, audio_format)
+            except Exception as e:
+                logger.error(f"خطا در فرآیند تولید صدا برای کاربر {user_id}: {str(e)}")
+                await update.message.reply_text(
+                    "❌ متأسفانه مشکلی در تولید صدا پیش آمد. لطفاً دوباره تلاش کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                
+                return None
             
-            if success:
-                try:
-                    with open(output_file, "rb") as audio:
-                        await update.message.reply_audio(
-                            audio=audio,
-                            caption=f"🎙 گوینده : {voice_persian}\n🎼 حس صوت : {feeling_name}",
-                            title="Generated Audio",
-                            reply_markup=ReplyKeyboardRemove()
-                        )
-                    os.remove(output_file)
-                    logger.info(f"فایل صوتی ارسال و حذف شد برای کاربر {user_id}: {output_file}")
-                    
-                    await status_message.edit_text(
-                        "✅ فایل صوتی با موفقیت ارسال شد! برای تولید دوباره، روی دکمه تبدیل متن به صدا کلیک کنید."
-                    )
-                    
-                    # بازگشت به صفحه اصلی
-                    keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔙 برگشت"]]
-                    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-                    await update.message.reply_text(
-                        "🎙 به ربات تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
-                        "برای تولید صدای جدید یا استفاده از دستیار هوشمند، یکی از دکمه‌های زیر را انتخاب کنید:",
-                        reply_markup=reply_markup
-                    )
-                    context.user_data.clear()
-                    context.user_data["state"] = "main"
-                        
-                except Exception as e:
-                    logger.error(f"خطا در ارسال فایل صوتی برای کاربر {user_id}: {str(e)}")
-                    try:
-                        await status_message.edit_text(
-                            "❌ خطا در ارسال فایل صوتی. لطفاً دوباره امتحان کنید."
-                        )
-                    except Exception:
-                        logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
-                finally:
-                    try:
-                        if os.path.exists(output_file):
-                            os.remove(output_file)
-                    except Exception:
-                        logger.warning(f"ناتوانی در حذف فایل صوتی برای کاربر {user_id}: {output_file}")
-            else:
-                try:
-                    await status_message.edit_text(
-                        "❌ خطا در تولید صدا. لطفاً مطمئن شوید حس (حداکثر 500 کاراکتر) و متن (حداکثر 1000 کاراکتر) مناسب هستند و صدا پشتیبانی می‌شود."
-                    )
-                except Exception:
-                    logger.warning(f"ناتوانی در به‌روزرسانی پیام وضعیت برای کاربر {user_id}")
-            
-            return None
-        
         # دستیار هوشمند
         elif context.user_data["state"] == "assistant":
             # Add user message to conversation history
@@ -1304,40 +1466,59 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             feeling_prompt = selected_tone["prompt"]
             tone_name = selected_tone["name"]
             
-            # Notify user that their request is being processed
-            processing_message = await update.message.reply_text(
-                f"🔊 <b>در حال تولید متن نمونه و ساخت صدا...</b>\n\n"
-                f"• <b>صدا:</b> {voice_persian}\n"
-                f"• <b>حس:</b> {tone_name}",
-                parse_mode="HTML"
-            )
-            
             try:
-                # Generate sample text based on the selected tone
-                sample_text = await generate_sample_text(tone_name, feeling_prompt, 200)
+                # ایجاد متن نمونه (درخواست اول به API)
+                sample_text = await generate_sample_text(update, tone_name, feeling_prompt, 200)
                 
-                # Generate unique file name for this sample with OGG format
+                # آماده سازی فایل خروجی
                 output_file = f"sample_{uuid4()}.ogg"
                 
-                # Update the processing message to show text is ready
-                try:
-                    await processing_message.edit_text(
-                        f"🔊 <b>متن آماده شد، در حال تولید صدا...</b>\n\n"
-                        f"• <b>صدا:</b> {voice_persian}\n"
-                        f"• <b>حس:</b> {tone_name}",
-                        parse_mode="HTML"
-                    )
-                except Exception as e:
-                    logger.warning(f"خطا در به‌روزرسانی پیام پردازش: {str(e)}")
+                # ایجاد یک شناسه یکتا برای درخواست تولید صدا
+                task_id = f"audio_{uuid4().hex}"
+                API_TASKS[task_id] = {"status": "running", "result": None}
                 
-                # Generate audio using our existing function with OGG format
-                success = generate_audio(sample_text, feeling_prompt, voice, output_file, "ogg")
+                # شروع درخواست API برای تولید صدا در یک ترد جداگانه
+                thread = threading.Thread(
+                    target=run_api_task,
+                    args=(task_id, generate_audio, sample_text, feeling_prompt, voice, output_file, "ogg")
+                )
+                thread.start()
                 
-                # Delete the processing message
+                # نمایش پیام با دکمه شیشه‌ای و پروگرس بار
+                initial_text = f"🔊 <b>در حال تولید صدا...</b>\n\n• <b>صدا:</b> {voice_persian}\n• <b>حس:</b> {tone_name}"
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("در حال پردازش...", callback_data="waiting")]
+                ])
+                
+                progress_message = await update.message.reply_text(
+                    f"{initial_text}\n\n{ANIMATED_PROGRESS_FRAMES[0]}",
+                    reply_markup=keyboard,
+                    parse_mode="HTML"
+                )
+                
+                # نمایش پروگرس بار انیمیشنی تا زمان دریافت پاسخ
+                frame_index = 0
+                while task_id in API_TASKS and API_TASKS[task_id]["status"] == "running":
+                    frame_index = (frame_index + 1) % len(ANIMATED_PROGRESS_FRAMES)
+                    try:
+                        await progress_message.edit_text(
+                            f"{initial_text}\n\n{ANIMATED_PROGRESS_FRAMES[frame_index]}",
+                            reply_markup=keyboard,
+                            parse_mode="HTML"
+                        )
+                        await asyncio.sleep(0.5)
+                    except Exception as e:
+                        logger.warning(f"خطا در به‌روزرسانی پروگرس بار: {str(e)}")
+                
+                # دریافت نتیجه درخواست
+                result = API_TASKS.pop(task_id, {"status": "error", "result": None})
+                success = result["status"] == "completed" and result["result"]
+                
+                # حذف پیام پروگرس بار
                 try:
-                    await context.bot.delete_message(chat_id=update.message.chat_id, message_id=processing_message.message_id)
+                    await progress_message.delete()
                 except Exception as e:
-                    logger.warning(f"خطا در حذف پیام پردازش: {str(e)}")
+                    logger.warning(f"خطا در حذف پیام پروگرس بار: {str(e)}")
                 
                 if success:
                     try:
@@ -1383,30 +1564,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 
             return None
-
-# تابع برای تولید متن نمونه با توجه به حس انتخاب شده
-async def generate_sample_text(tone_name, tone_prompt, max_length=200):
-    """تولید متن نمونه با توجه به حس انتخاب شده"""
-    try:
-        # ساخت پرامپت برای ایجاد متن متناسب با حس
-        prompt = f"""
-        لطفاً یک متن نمونه کوتاه (حداکثر 200 کاراکتر) با حس "{tone_name}" ایجاد کنید.
-        این متن باید به فارسی باشد و برای نمایش ویژگی‌های این حس مناسب باشد.
-        متن باید طبیعی و روان باشد، مثل یک تکه از یک کتاب، مصاحبه یا گفتگو.
-        فقط متن را بنویسید، بدون هیچ توضیح اضافی.
-        """
-        
-        # فراخوانی API برای تولید متن
-        response = call_api(prompt, seed=int(uuid4().int % 100000))
-        
-        # محدود کردن طول متن به حداکثر تعیین شده
-        if len(response) > max_length:
-            response = response[:max_length] + "..."
-            
-        return response
-    except Exception as e:
-        logger.error(f"خطا در تولید متن نمونه: {str(e)}")
-        return f"نمونه متن با حس {tone_name}. این یک متن کوتاه است که نشان دهنده این حس می‌باشد."
 
 # Initialize the Telegram application
 # Create the Application outside of the main function
