@@ -46,7 +46,7 @@ async def show_animated_progress(update: Update, context: ContextTypes.DEFAULT_T
     
     # استفاده از دکمه شیشه‌ای برای نمایش پروگرس بار
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"🔄 در حال پردازش... {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
+        [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
     ])
     
     # ارسال پیام اولیه با دکمه شیشه‌ای
@@ -65,7 +65,7 @@ async def show_animated_progress(update: Update, context: ContextTypes.DEFAULT_T
         try:
             # بروزرسانی دکمه با فریم جدید پروگرس بار
             new_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"🔄 در حال پردازش... {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
+                [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
             ])
             
             # بروزرسانی پیام با کیبورد جدید
@@ -126,7 +126,7 @@ async def generate_sample_text(update: Update, tone_name, tone_prompt, max_lengt
         
         # استفاده از دکمه شیشه‌ای برای نمایش پروگرس بار
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"🔄 در حال پردازش... {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
+            [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
         ])
         
         message = await update.message.reply_text(
@@ -142,7 +142,7 @@ async def generate_sample_text(update: Update, tone_name, tone_prompt, max_lengt
             try:
                 # بروزرسانی دکمه با فریم جدید پروگرس بار
                 new_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(f"🔄 در حال پردازش... {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
+                    [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
                 ])
                 
                 # بروزرسانی پیام با کیبورد جدید
@@ -981,12 +981,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML"
             )
             
-            # Try to add reaction with valid emoji (👍)
             try:
                 await context.bot.set_message_reaction(
                     chat_id=update.message.chat_id,
                     message_id=update.message.message_id,
-                    reaction=[ReactionTypeEmoji(emoji="👍")],
+                    reaction=[ReactionTypeEmoji(emoji="🤝")],
                     is_big=True
                 )
             except Exception as e:
@@ -1212,7 +1211,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # استفاده از دکمه شیشه‌ای برای نمایش پروگرس بار
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(f"🔄 در حال پردازش... {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
+                    [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
                 ])
                 
                 progress_message = await update.message.reply_text(
@@ -1235,7 +1234,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     try:
                         # بروزرسانی دکمه با فریم جدید پروگرس بار
                         new_keyboard = InlineKeyboardMarkup([
-                            [InlineKeyboardButton(f"🔄 در حال پردازش... {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
+                            [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
                         ])
                         
                         # بروزرسانی پیام با کیبورد جدید
@@ -1501,7 +1500,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # استفاده از دکمه شیشه‌ای برای نمایش پروگرس بار
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(f"🔄 در حال پردازش... {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
+                    [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
                 ])
                 
                 progress_message = await update.message.reply_text(
@@ -1517,7 +1516,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     try:
                         # بروزرسانی دکمه با فریم جدید پروگرس بار
                         new_keyboard = InlineKeyboardMarkup([
-                            [InlineKeyboardButton(f"🔄 در حال پردازش... {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
+                            [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
                         ])
                         
                         # بروزرسانی پیام با کیبورد جدید
