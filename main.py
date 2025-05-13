@@ -40,144 +40,6 @@ ANIMATED_PROGRESS_FRAMES = [
 # Task trackers
 API_TASKS = {}
 
-# تنظیمات زبان
-# تعریف ترجمه‌های لازم برای پشتیبانی دوزبانه
-TRANSLATIONS = {
-    "fa": {  # فارسی
-        "tts_button": "🎙 تبدیل متن به صدا",
-        "assistant_button": "🤖 دستیار هوشمند",
-        "sample_button": "🔊 نمونه صدا و حس ها",
-        "settings_button": "⚙️ تنظیمات",
-        "back_button": "🔙 برگشت",
-        "language_setting": "🌐 تغییر زبان",
-        "choose_language": "🌐 لطفاً زبان مورد نظر خود را انتخاب کنید:",
-        "fa_language": "🇮🇷 فارسی",
-        "en_language": "🇬🇧 English",
-        "language_changed": "✅ زبان به فارسی تغییر کرد",
-        "settings_title": "⚙️ تنظیمات",
-        "settings_description": "از این بخش می‌توانید تنظیمات ربات را تغییر دهید:",
-        "welcome_message": "✨ <b>سلام {user_fullname} عزیز!</b> ✨\n\n🎵 به ربات پیشرفته تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n📌 <b>با این ربات می‌توانید:</b>\n• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
-        "main_menu": "✅ شما در صفحه اصلی هستید!",
-        # زیرمنوهای تبدیل متن به صدا
-        "tts_title": "🎙 <b>تبدیل متن به صدا - انتخاب حس و لحن</b>",
-        "tts_description": "برای شروع فرآیند تبدیل متن به صدا، ابتدا نیاز است حس و لحن مناسب را انتخاب کنید.\nلحن مناسب باعث می‌شود صدای تولید شده طبیعی‌تر و تاثیرگذارتر شود.\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
-        "manual_tone": "✍️ لحن و حس دستی",
-        "functional_tones": "📢 لحن‌های کاربردی",
-        "character_tones": "👑 لحن‌های نمایشی / شخصیتی",
-        "voice_style_tones": "🎤 لحن‌های گفتاری",
-        "emotional_tones": "🎭 لحن‌های احساسی",
-        "enter_manual_tone": "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\nمثال: Dramatic یا Gruff, fast-talking, New York accent",
-        "enter_text": "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\nمثال: Yeah, yeah, ya got Big Apple Insurance",
-        "select_voice": "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
-        "select_format": "لطفاً فرمت صوتی موردنظر را انتخاب کنید:",
-        "processing_audio": "🔊 <b>در حال تبدیل متن به صدا...</b>\n\n• <b>متن:</b> {text}\n• <b>صدا:</b> {voice}\n• <b>حس:</b> {feeling}\n• <b>فرمت:</b> {format}",
-        "audio_success": "✅ <b>فایل صوتی با موفقیت تولید شد!</b>\n\nبرای تولید صدای جدید یا استفاده از سایر امکانات، یکی از دکمه‌های زیر را انتخاب کنید:",
-        "audio_caption": "🎙 <b>تبدیل متن به صدا</b>\n\n• <b>گوینده:</b> {voice}\n• <b>حس و لحن:</b> {feeling}\n• <b>فرمت:</b> {format}",
-        "error_text_length": "خطا: متن شما {length} کاراکتر است. لطفاً متنی با حداکثر {max_length} کاراکتر وارد کنید.",
-        "error_feeling_length": "خطا: حس شما {length} کاراکتر است. لطفاً حسی با حداکثر {max_length} کاراکتر وارد کنید.",
-        # نمونه صدا
-        "sample_title": "🎙 <b>نمونه صدا و حس - انتخاب صدا</b>",
-        "sample_description": "به بخش نمونه صدا و حس خوش آمدید!\nدر این بخش می‌توانید نمونه‌هایی از صداها و حس‌های مختلف را بشنوید تا بهترین انتخاب را داشته باشید.\n\n📌 <b>لطفاً ابتدا یکی از صداها را انتخاب کنید:</b>",
-        "sample_voice_selected": "🎙 <b>صدای انتخاب شده: {voice}</b>\n\nعالی! حالا لطفاً یکی از دسته‌بندی‌های حس و لحن را انتخاب کنید:",
-        "sample_category_selected": "🎭 <b>دسته‌بندی انتخاب شده: {category}</b>\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید تا نمونه صدا را بشنوید:",
-        "processing_sample": "🔊 <b>در حال تولید صدا...</b>\n\n• <b>صدا:</b> {voice}\n• <b>حس:</b> {tone}",
-        "sample_caption": "🎙 <b>نمونه صدا</b>\n\n• <b>گوینده:</b> {voice}\n• <b>حس و لحن:</b> {tone}\n\n<b>متن:</b>\n{text}",
-        # دستیار هوشمند
-        "assistant_greeting": "👋 <b>سلام {user_fullname} عزیز!</b>\n\nمن دستیار هوشمند ربات تبدیل متن به صدا هستم و آماده‌ام تا به شما کمک کنم!\n\n🔹 <b>چطور می‌توانم کمکتان کنم؟</b>\n• سوالات خود درباره تبدیل متن به صدا را بپرسید\n• راهنمایی درباره انتخاب حس و لحن مناسب بخواهید\n• تصویر ارسال کنید تا آن را تحلیل کنم\n• پیشنهاد متن مناسب برای صداگذاری بخواهید\n\nمنتظر پیام شما هستم... 💬",
-        "image_analysis_title": "✨ تحلیل تصویر:\n\n",
-        # عضویت کانال
-        "membership_required": "🔐 <b>به ربات تبدیل متن به صدا خوش آمدید</b>\n\n📢 <b>برای استفاده از امکانات این ربات، ابتدا باید عضو کانال رسمی ما شوید.</b>\n🔄 پس از عضویت، روی دکمه «تأیید عضویت من» کلیک کنید.",
-        "join_channel": "🌟 عضویت در کانال رسمی",
-        "verify_membership": "✅ تأیید عضویت من",
-        "membership_failed": "⚠️ <b>دسترسی محدود شده</b>\n\n💡 برای استفاده از ربات، ابتدا باید عضو کانال رسمی ما شوید.\nپس از عضویت، روی دکمه زیر کلیک کنید.",
-        # پیام‌های پردازش
-        "processing": "در حال پردازش",
-        "analyzing_image": "در حال آنالیز تصویر 🔍",
-        "analyzing_processing": "در حال تحلیل و پردازش 🧠",
-        "receiving_results": "در حال دریافت نتایج تحلیل...",
-        # دسته‌بندی‌های حس
-        "emotional_category": "لحن‌های احساسی",
-        "voice_styles_category": "لحن‌های گفتاری",
-        "character_affects_category": "لحن‌های نمایشی / شخصیتی",
-        "functional_category": "لحن‌های کاربردی",
-        # انتخاب زبان در شروع
-        "language_setting": "🌐 تغییر زبان",
-        "choose_language": "🌐 لطفاً زبان مورد نظر خود را انتخاب کنید:",
-        "fa_language": "🇮🇷 فارسی",
-        "en_language": "🇬🇧 English",
-        "language_changed": "✅ زبان به فارسی تغییر کرد",
-        "settings_title": "⚙️ تنظیمات",
-        "settings_description": "از این بخش می‌توانید تنظیمات ربات را تغییر دهید:",
-        "back_button": "🔙 برگشت",
-        "language_selection_start": "🌐 <b>انتخاب زبان | Language Selection</b>\n\nلطفاً زبان مورد نظر خود را برای استفاده از ربات انتخاب کنید.\nPlease select your preferred language.",
-        "audio_success_message": "✅ <b>فایل صوتی با موفقیت تولید شد!</b>\n\nبرای تولید صدای جدید یا استفاده از سایر امکانات، یکی از دکمه‌های زیر را انتخاب کنید:",
-    },
-    "en": {  # انگلیسی
-        "tts_button": "🎙 Text to Speech",
-        "assistant_button": "🤖 Smart Assistant",
-        "sample_button": "🔊 Voice & Tone Samples",
-        "settings_button": "⚙️ Settings",
-        "back_button": "🔙 Back",
-        "language_setting": "🌐 Change Language",
-        "choose_language": "🌐 Please select your language:",
-        "fa_language": "🇮🇷 فارسی",
-        "en_language": "🇬🇧 English",
-        "language_changed": "✅ Language changed to English",
-        "settings_title": "⚙️ Settings",
-        "settings_description": "You can change bot settings from this section:",
-        "welcome_message": "✨ <b>Hello dear {user_fullname}!</b> ✨\n\n🎵 Welcome to the advanced Text-to-Speech and Smart Assistant bot!\n\n📌 <b>With this bot you can:</b>\n• Convert your texts to voice with custom tones and feelings\n• Use the smart assistant to answer questions and analyze images\n• Listen to different voice and tone samples to choose the best combination\n\n👇 <b>Please select one of the options below:</b>",
-        "main_menu": "✅ You are in the main menu!",
-        # Text to Speech submenus
-        "tts_title": "🎙 <b>Text to Speech - Select Tone and Feeling</b>",
-        "tts_description": "To start the text-to-speech process, you first need to select an appropriate tone and feeling.\nThe right tone will make the generated voice more natural and effective.\n\nPlease select one of the options below:",
-        "manual_tone": "✍️ Custom Tone & Feeling",
-        "functional_tones": "📢 Functional Tones",
-        "character_tones": "👑 Character/Dramatic Tones",
-        "voice_style_tones": "🎤 Speech Style Tones",
-        "emotional_tones": "🎭 Emotional Tones",
-        "enter_manual_tone": "Please enter the voice tone or instructions (maximum 500 characters).\nExample: Dramatic or Gruff, fast-talking, New York accent",
-        "enter_text": "Now enter the text you want to convert to speech (maximum 1000 characters).\nExample: Yeah, yeah, ya got Big Apple Insurance",
-        "select_voice": "Please select one of the following voices:",
-        "select_format": "Please select the audio format:",
-        "processing_audio": "🔊 <b>Converting text to speech...</b>\n\n• <b>Text:</b> {text}\n• <b>Voice:</b> {voice}\n• <b>Tone:</b> {feeling}\n• <b>Format:</b> {format}",
-        "audio_success": "✅ <b>Audio file successfully generated!</b>\n\nTo create a new voice or use other features, select one of the buttons below:",
-        "audio_caption": "🎙 <b>Text to Speech</b>\n\n• <b>Voice:</b> {voice}\n• <b>Tone & Feeling:</b> {feeling}\n• <b>Format:</b> {format}",
-        "error_text_length": "Error: Your text is {length} characters. Please enter text with maximum {max_length} characters.",
-        "error_feeling_length": "Error: Your tone is {length} characters. Please enter a tone with maximum {max_length} characters.",
-        # Voice samples
-        "sample_title": "🎙 <b>Voice & Tone Samples - Select Voice</b>",
-        "sample_description": "Welcome to the Voice & Tone Sample section!\nHere you can listen to samples of different voices and tones to make the best choice.\n\n📌 <b>Please first select one of the voices:</b>",
-        "sample_voice_selected": "🎙 <b>Selected voice: {voice}</b>\n\nGreat! Now please select one of the tone categories:",
-        "sample_category_selected": "🎭 <b>Selected category: {category}</b>\n\nPlease select one of the tones below to hear the voice sample:",
-        "processing_sample": "🔊 <b>Generating voice sample...</b>\n\n• <b>Voice:</b> {voice}\n• <b>Tone:</b> {tone}",
-        "sample_caption": "🎙 <b>Voice Sample</b>\n\n• <b>Voice:</b> {voice}\n• <b>Tone & Feeling:</b> {tone}\n\n<b>Text:</b>\n{text}",
-        # Smart assistant
-        "assistant_greeting": "👋 <b>Hello dear {user_fullname}!</b>\n\nI'm the smart assistant of the Text-to-Speech bot and I'm ready to help you!\n\n🔹 <b>How can I help you?</b>\n• Ask your questions about text-to-speech\n• Request guidance on selecting the appropriate tone and feeling\n• Send an image for me to analyze\n• Request suggestions for suitable text for voiceover\n\nI'm waiting for your message... 💬",
-        "image_analysis_title": "✨ Image Analysis:\n\n",
-        # Channel membership
-        "membership_required": "🔐 <b>Welcome to the Text-to-Speech Bot</b>\n\n📢 <b>To use the features of this bot, you must first join our official channel.</b>\n🔄 After joining, click on the \"Verify My Membership\" button.",
-        "join_channel": "🌟 Join Official Channel",
-        "verify_membership": "✅ Verify My Membership",
-        "membership_failed": "⚠️ <b>Access Restricted</b>\n\n💡 To use the bot, you must first join our official channel.\nAfter joining, click on the button below.",
-        # Processing messages
-        "processing": "Processing",
-        "analyzing_image": "Analyzing image 🔍",
-        "analyzing_processing": "Analyzing and processing 🧠",
-        "receiving_results": "Receiving analysis results...",
-        # Tone categories
-        "emotional_category": "Emotional Tones",
-        "voice_styles_category": "Speech Style Tones",
-        "character_affects_category": "Character/Dramatic Tones",
-        "functional_category": "Functional Tones",
-        # Language selection at start
-        "language_selection_start": "🌐 <b>Language Selection | انتخاب زبان</b>\n\nPlease select your preferred language.\nلطفاً زبان مورد نظر خود را برای استفاده از ربات انتخاب کنید.",
-        "audio_success_message": "✅ <b>Audio file successfully generated!</b>\n\nTo create a new audio or use other features, select one of the buttons below:",
-    }
-}
-
-# زبان پیش‌فرض
-DEFAULT_LANGUAGE = "fa"
-
 # تابع برای نمایش پروگرس بار به صورت انیمیشن در دکمه شیشه‌ای
 async def show_animated_progress(update: Update, context: ContextTypes.DEFAULT_TYPE, task_id: str, initial_text: str):
     """نمایش پروگرس بار انیمیشنی در دکمه شیشه‌ای تا زمان دریافت پاسخ از API"""
@@ -334,7 +196,6 @@ SAMPLE_TEXTS = {
 # تنظیمات API دستیار هوشمند
 API_URL = "https://text.pollinations.ai/"
 SYSTEM_PROMPT = """
-[فارسی]
 شما یک دستیار هوشمند پیشرفته برای ربات تبدیل متن به صدا هستید. وظایف و ویژگی‌های شما:
 با لحن خودمونی و نسل Z حرف بزن یا ایموجی های مناسب
 از نام کاربر در پاسخ‌های خود استفاده کنید تا تجربه شخصی‌تری ایجاد کنید.
@@ -365,40 +226,6 @@ SYSTEM_PROMPT = """
 - پیشنهاد ترکیب‌های مناسب متن و صدا
 
 لطفاً همیشه پاسخ‌های خود را با توجه به این دستورالعمل‌ها ارائه دهید و در صورت نیاز، از کاربر سوالات تکمیلی بپرسید تا بتوانید بهترین راهنمایی را ارائه دهید.
-
-[English]
-You are an advanced smart assistant for a text-to-speech bot. Your tasks and features:
-Speak in a casual, Gen Z tone with appropriate emojis
-Use the user's name in your responses to create a more personalized experience.
-
-1. Guidance and Consultation:
-- Help users select appropriate texts for conversion to speech
-- Suggest suitable tones and feelings for each text
-- Guide on the best voices for each type of content
-
-2. Analysis and Suggestions:
-- Analyze user text and suggest improvements
-- Recommend structure for longer texts
-- Guide on pronunciation and correct spelling
-
-3. Personality Traits:
-- Accurate and professional responses
-- Friendly and warm tone
-- Maintain conversation context and reference previous questions
-- Provide practical examples
-
-4. Limitations:
-- Maximum text length: 1000 characters
-- Maximum feeling instruction length: 500 characters
-
-5. Special Capabilities:
-- Analyze images and suggest appropriate text
-- Guide on audio formats (MP3, WAV, OGG)
-- Suggest suitable text and voice combinations
-
-Please always provide your responses according to these guidelines and, if necessary, ask the user follow-up questions to provide the best guidance.
-
-IMPORTANT: Respond in the same language the user is writing in.
 """
 
 MODEL = "openai-large"
@@ -481,26 +308,6 @@ TONES = {
         {"name": "مراقبه‌ای و معنوی", "emoji": "🕉️", "prompt": "Soft, breathy, and hypnotic, with a soothing cadence. Serene, introspective, and transcendent, like guiding a meditation. Very slow pacing, with long, flowing phrases (e.g., 'نفس بکش... و آرام شو...'). Peace, spirituality, and connection. Gentle and otherworldly, like a spiritual guide. Long, calming pauses to mimic deep breathing. Soften words like 'آرامش' or 'روح' for Persian spirituality."},
         {"name": "بحث‌برانگیز و منطقی", "emoji": "⚖️", "prompt": "Sharp, confident, and assertive, with a debating edge. Logical, intense, and persuasive, like arguing a point. Fast and precise pacing, with slows for key arguments (e.g., 'این... دلیل اصلی ماست!'). Passion, conviction, and urgency. Articulate and competitive, like a debater. Brief pauses after strong points to emphasize logic. Stress words like 'دلیل' or 'حقیقت' for Persian argumentation."},
     ]
-}
-
-# Add translations for tone categories at the beginning of the file, after the TRANSLATIONS dictionary
-
-# تعریف دسته‌بندی‌های احساسات - Define tone categories with translations
-TONE_CATEGORIES_TRANSLATION = {
-    "fa": {
-        "عمومی": "عمومی",
-        "احساسات": "احساسات",
-        "مکالمه": "مکالمه",
-        "توضیحات": "توضیحات",
-        "حالت": "حالت"
-    },
-    "en": {
-        "عمومی": "General",
-        "احساسات": "Emotions",
-        "مکالمه": "Conversation",
-        "توضیحات": "Descriptions",
-        "حالت": "Modes"
-    }
 }
 
 # ایجاد اپلیکیشن FastAPI
@@ -672,129 +479,24 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         is_member = await check_membership(context.bot, user_id)
         
-        # زبان فعلی کاربر یا زبان پیش‌فرض
-        lang = context.user_data.get("language", DEFAULT_LANGUAGE)
-        
         if is_member:
-            # اگر کاربر عضو کانال باشد
+            # اگر کاربر عضو کانال باشد، شروع ربات
             await query.message.delete()
             return await start_bot_services(update, context)
         else:
             # اگر هنوز عضو نشده باشد
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(TRANSLATIONS[lang]["join_channel"], url=REQUIRED_CHANNEL_URL)],
-                [InlineKeyboardButton(TRANSLATIONS[lang]["verify_membership"], callback_data="check_membership")]
+                [InlineKeyboardButton("🌟 عضویت در کانال رسمی", url=REQUIRED_CHANNEL_URL)],
+                [InlineKeyboardButton("✅ تأیید عضویت من", callback_data="check_membership")]
             ])
             
             await query.edit_message_text(
-                TRANSLATIONS[lang]["membership_failed"],
+                "⚠️ <b>دسترسی محدود شده</b>\n\n"
+                "💡 برای استفاده از ربات، ابتدا باید عضو کانال رسمی ما شوید.\n"
+                "پس از عضویت، روی دکمه زیر کلیک کنید.",
                 reply_markup=keyboard,
                 parse_mode="HTML"
             )
-    elif query.data == "settings":
-        # مدیریت دکمه تنظیمات
-        return await settings_handler(update, context)
-    elif query.data == "set_language":
-        # نمایش منوی انتخاب زبان
-        lang = context.user_data.get("language", DEFAULT_LANGUAGE)
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(TRANSLATIONS["fa"]["fa_language"], callback_data="set_lang_fa")],
-            [InlineKeyboardButton(TRANSLATIONS["en"]["en_language"], callback_data="set_lang_en")],
-            [InlineKeyboardButton(TRANSLATIONS[lang]["back_button"], callback_data="settings")]
-        ])
-        
-        await query.edit_message_text(
-            TRANSLATIONS[lang]["choose_language"],
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
-    elif query.data.startswith("set_lang_"):
-        # مدیریت تغییر زبان
-        lang = query.data.split("_")[2]  # set_lang_fa یا set_lang_en
-        if lang in TRANSLATIONS:
-            context.user_data["language"] = lang
-            
-            # انتخاب متن مناسب بر اساس زبان
-            message_text = TRANSLATIONS[lang]["language_changed"]
-            
-            await query.edit_message_text(
-                message_text,
-                parse_mode="HTML"
-            )
-            
-            # بررسی وضعیت کاربر - آیا در مرحله انتخاب زبان اولیه است یا در تنظیمات
-            if context.user_data.get("state") == "select_language":
-                # اگر اولین بار است، بررسی عضویت در کانال
-                await asyncio.sleep(1)  # تاخیر کوتاه برای نمایش پیام تغییر زبان
-                
-                # بررسی عضویت در کانال
-                user_id = update.effective_user.id
-                is_member = await check_membership(context.bot, user_id)
-                
-                if is_member:
-                    # اگر عضو کانال باشد
-                    return await start_bot_services(update, context)
-                else:
-                    # اگر عضو کانال نباشد
-                    keyboard = InlineKeyboardMarkup([
-                        [InlineKeyboardButton(TRANSLATIONS[lang]["join_channel"], url=REQUIRED_CHANNEL_URL)],
-                        [InlineKeyboardButton(TRANSLATIONS[lang]["verify_membership"], callback_data="check_membership")]
-                    ])
-                    
-                    await query.message.reply_text(
-                        TRANSLATIONS[lang]["membership_required"],
-                        reply_markup=keyboard,
-                        parse_mode="HTML"
-                    )
-                    return None
-            else:
-                # اگر از طریق تنظیمات است، به صفحه اصلی برگرد
-                await asyncio.sleep(1)  # تاخیر کوتاه برای نمایش پیام تغییر زبان
-                return await start_bot_services(update, context)
-    elif query.data == "back_to_main":
-        # بازگشت به صفحه اصلی
-        await query.message.delete()
-        return await start_bot_services(update, context)
-    return None
-
-async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """مدیریت بخش تنظیمات"""
-    # بررسی اینکه آیا درخواست از دکمه اینلاین آمده یا از دکمه‌های معمولی
-    if update.callback_query:
-        query = update.callback_query
-        lang = context.user_data.get("language", DEFAULT_LANGUAGE)
-        
-        # ایجاد کیبورد اینلاین برای تنظیمات
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(TRANSLATIONS[lang]["language_setting"], callback_data="set_language")],
-            [InlineKeyboardButton(TRANSLATIONS[lang]["back_button"], callback_data="back_to_main")]
-        ])
-        
-        await query.edit_message_text(
-            f"{TRANSLATIONS[lang]['settings_title']}\n\n"
-            f"{TRANSLATIONS[lang]['settings_description']}",
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
-    else:
-        # اگر از دکمه‌های معمولی انتخاب شده
-        lang = context.user_data.get("language", DEFAULT_LANGUAGE)
-        
-        # ایجاد کیبورد اینلاین برای تنظیمات
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(TRANSLATIONS[lang]["language_setting"], callback_data="set_language")],
-            [InlineKeyboardButton(TRANSLATIONS[lang]["back_button"], callback_data="back_to_main")]
-        ])
-        
-        await update.message.reply_text(
-            f"{TRANSLATIONS[lang]['settings_title']}\n\n"
-            f"{TRANSLATIONS[lang]['settings_description']}",
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
-    
-    context.user_data["state"] = "settings"
-    context.user_data["previous_state"] = "main"
     return None
 
 async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -805,14 +507,6 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_fullname = user_fullname.strip()
     
     logger.info(f"دریافت دستور /start و تأیید عضویت برای کاربر: {user_id}")
-    
-    # اگر زبان در تنظیمات کاربر نباشد، زبان پیش‌فرض را تنظیم کن
-    if "language" not in context.user_data:
-        context.user_data["language"] = DEFAULT_LANGUAGE
-    
-    # زبان فعلی کاربر
-    lang = context.user_data.get("language", DEFAULT_LANGUAGE)
-    
     try:
         # Add reaction to the /start message - using a valid reaction emoji (😎)
         try:
@@ -828,91 +522,77 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Log the error but continue execution
             logger.warning(f"خطا در افزودن واکنش: {str(e)}")
 
-        # ایجاد کیبورد اصلی بر اساس زبان انتخاب شده
         keyboard = [
-            [TRANSLATIONS[lang]["tts_button"]],
-            [TRANSLATIONS[lang]["assistant_button"], TRANSLATIONS[lang]["sample_button"]],
-            [TRANSLATIONS[lang]["settings_button"]]
+            ["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], 
+            ["🔊 نمونه صدا و حس ها"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
         # Use the appropriate method to send message based on where the command came from
-        welcome_message = TRANSLATIONS[lang]["welcome_message"].format(user_fullname=user_fullname)
-        
         if update.message:
             await update.message.reply_text(
-                welcome_message,
+                f"✨ <b>سلام {user_fullname} عزیز!</b> ✨\n\n"
+                "🎵 به ربات پیشرفته تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
+                "📌 <b>با این ربات می‌توانید:</b>\n"
+                "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
+                "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
+                "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n"
+                "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
                 reply_markup=reply_markup,
                 parse_mode="HTML"
             )
         elif update.callback_query:
             await update.callback_query.message.reply_text(
-                welcome_message,
+                f"✨ <b>سلام {user_fullname} عزیز!</b> ✨\n\n"
+                "🎵 به ربات پیشرفته تبدیل متن به صدا و دستیار هوشمند خوش آمدید!\n\n"
+                "📌 <b>با این ربات می‌توانید:</b>\n"
+                "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
+                "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
+                "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n"
+                "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
                 reply_markup=reply_markup,
                 parse_mode="HTML"
             )
         
         context.user_data.clear()
         context.user_data["state"] = "main"
-        context.user_data["language"] = lang  # حفظ زبان انتخاب شده
     except Exception as e:
         logger.error(f"خطا در ارسال پاسخ /start برای کاربر {user_id}: {str(e)}")
     return None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دستور شروع - نمایش منوی انتخاب زبان و سپس بررسی عضویت کاربر در کانال"""
+    """دستور شروع - بررسی عضویت کاربر در کانال"""
     user_id = update.effective_user.id
     logger.info(f"دریافت دستور /start از کاربر: {user_id}")
     
-    # ابتدا برای انتخاب زبان، بدون بررسی عضویت در کانال
-    if "language" not in context.user_data:
-        # اگر زبان انتخاب نشده، منوی انتخاب زبان را نمایش دهیم
+    # بررسی عضویت کاربر در کانال
+    is_member = await check_membership(context.bot, user_id)
+    
+    if is_member:
+        # اگر عضو کانال است، مستقیم به سرویس‌های ربات دسترسی دهید
+        return await start_bot_services(update, context)
+    else:
+        # اگر کاربر عضو کانال نیست، پیام عضویت اجباری نمایش دهید        
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🇮🇷 فارسی", callback_data="set_lang_fa")],
-            [InlineKeyboardButton("🇬🇧 English", callback_data="set_lang_en")]
+            [InlineKeyboardButton("🌟 عضویت در کانال رسمی", url=REQUIRED_CHANNEL_URL)],
+            [InlineKeyboardButton("✅ تأیید عضویت من", callback_data="check_membership")]
         ])
         
         await update.message.reply_text(
-            "🌐 <b>انتخاب زبان | Language Selection</b>\n\n"
-            "لطفاً زبان مورد نظر خود را برای استفاده از ربات انتخاب کنید.\n"
-            "Please select your preferred language.",
+            "🔐 <b>به ربات تبدیل متن به صدا خوش آمدید</b>\n\n"
+            "📢 <b>برای استفاده از امکانات این ربات، ابتدا باید عضو کانال رسمی ما شوید.</b>\n"
+            "🔄 پس از عضویت، روی دکمه «تأیید عضویت من» کلیک کنید.",
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-        context.user_data["state"] = "select_language"
         return None
-    else:
-        # پس از انتخاب زبان، بررسی عضویت در کانال
-        lang = context.user_data.get("language", DEFAULT_LANGUAGE)
-        is_member = await check_membership(context.bot, user_id)
-        
-        if is_member:
-            # اگر کاربر عضو کانال است، به سرویس‌های اصلی ربات دسترسی دهید
-            return await start_bot_services(update, context)
-        else:
-            # اگر کاربر عضو کانال نیست، پیام عضویت اجباری نمایش دهید
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(TRANSLATIONS[lang]["join_channel"], url=REQUIRED_CHANNEL_URL)],
-                [InlineKeyboardButton(TRANSLATIONS[lang]["verify_membership"], callback_data="check_membership")]
-            ])
-            
-            await update.message.reply_text(
-                TRANSLATIONS[lang]["membership_required"],
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
-            return None
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    
-    # دریافت زبان فعلی کاربر
-    lang = context.user_data.get("language", DEFAULT_LANGUAGE)
-    
     if context.user_data.get("state") != "assistant":
         await update.message.reply_text(
             "لطفاً ابتدا به بخش دستیار هوشمند بروید.",
-            reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
         return None
 
@@ -946,7 +626,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Send processing message
         processing_message = await update.message.reply_text(
             "🔍",
-            reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
         )
         
         # Get the photo file - similar to Medical v6.py approach
@@ -958,24 +638,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image = process_image(image_data)
         
         # Get user caption or use default
-        default_caption = "لطفاً این تصویر را تحلیل کنید و متن مناسب برای تبدیل به صدا پیشنهاد دهید." if lang == "fa" else "Please analyze this image and suggest appropriate text for text-to-speech conversion."
-        user_caption = update.message.caption or default_caption
+        user_caption = update.message.caption or "لطفاً این تصویر را تحلیل کنید و متن مناسب برای تبدیل به صدا پیشنهاد دهید."
         
         # Add to conversation history
         if "conversation_history" not in context.user_data:
             context.user_data["conversation_history"] = []
             
-        conversation_prefix = "تصویر با کپشن: " if lang == "fa" else "Image with caption: "
         context.user_data["conversation_history"].append({
             "role": "user", 
-            "content": f"{conversation_prefix}{user_caption}"
+            "content": f"تصویر با کپشن: {user_caption}"
         })
         
         # Create a progress update task to show the AI is working
         try:
-            await processing_message.edit_text(TRANSLATIONS[lang]["analyzing_image"])
+            await processing_message.edit_text("در حال آنالیز تصویر 🔍")
             await asyncio.sleep(1)
-            await processing_message.edit_text(TRANSLATIONS[lang]["analyzing_processing"])
+            await processing_message.edit_text("در حال تحلیل و پردازش 🧠")
             
             # Show progress bar
             progress_duration = 5  # seconds
@@ -983,13 +661,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for percentage in range(0, 101, 5):
                 try:
                     await processing_message.edit_text(
-                        f"{TRANSLATIONS[lang]['analyzing_processing']}\n{create_progress_bar(percentage)}"
+                        f"در حال تحلیل تصویر 🧠\n{create_progress_bar(percentage)}"
                     )
                     await asyncio.sleep(step_duration)
                 except Exception as e:
                     logger.warning(f"خطا در به‌روزرسانی پیشرفت ({percentage}%): {str(e)}")
                     
-            await processing_message.edit_text(TRANSLATIONS[lang]["receiving_results"])
+            await processing_message.edit_text("در حال دریافت نتایج تحلیل...")
         except Exception as e:
             logger.warning(f"خطا در به‌روزرسانی پیام پردازش: {str(e)}")
             # Continue despite progress bar errors
@@ -1052,30 +730,23 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "conversation_history" not in context.user_data:
         context.user_data["conversation_history"] = []
 
-    # تنظیم زبان پیش‌فرض اگر تعیین نشده باشد
-    if "language" not in context.user_data:
-        context.user_data["language"] = DEFAULT_LANGUAGE
-    
-    # دریافت زبان فعلی کاربر
-    lang = context.user_data.get("language", DEFAULT_LANGUAGE)
-
     # مدیریت دکمه برگشت
-    if text == TRANSLATIONS[lang]["back_button"]:
+    if text == "🔙 برگشت":
         current_state = context.user_data.get("state", "main")
         previous_state = context.user_data.get("previous_state", "main")
         
         if current_state == "main":
             await update.message.reply_text(
-                TRANSLATIONS[lang]["main_menu"],
+                "✅ شما در صفحه اصلی هستید!",
                 reply_markup=ReplyKeyboardMarkup([
-                    [TRANSLATIONS[lang]["tts_button"]],
-                    [TRANSLATIONS[lang]["assistant_button"], TRANSLATIONS[lang]["sample_button"]],
-                    [TRANSLATIONS[lang]["settings_button"]]
+                    ["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"],
+                    ["🔊 نمونه صدا و حس ها"],
+                    ["🔙 برگشت"]
                 ], resize_keyboard=True)
             )
             return None
         
-        if previous_state == "main" or current_state == "assistant" or current_state == "settings":
+        if previous_state == "main" or current_state == "assistant":
             # Clear conversation history when going back to main menu
             if "conversation_history" in context.user_data:
                 context.user_data["conversation_history"] = []
@@ -1085,52 +756,202 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if current_state == "sample_voice":
             return await start(update, context)
         
-        # Handle other back button cases
-        if previous_state in ["select_tone_category", "select_tone", "manual_feeling", "text", "voice", "select_format"]:
-            if previous_state == "select_tone_category":
-                return await start(update, context)
-            elif previous_state == "select_tone":
-                keyboard = [
-                    [TRANSLATIONS[lang]["manual_tone"]],
-                    [TRANSLATIONS[lang]["functional_tones"], TRANSLATIONS[lang]["character_tones"]],
-                    [TRANSLATIONS[lang]["voice_style_tones"], TRANSLATIONS[lang]["emotional_tones"]],
-                    [TRANSLATIONS[lang]["back_button"]]
-                ]
-                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-                await update.message.reply_text(
-                    f"{TRANSLATIONS[lang]['tts_title']}\n\n"
-                    f"{TRANSLATIONS[lang]['tts_description']}",
-                    reply_markup=reply_markup,
-                    parse_mode="HTML"
-                )
-                context.user_data["state"] = "select_tone_category"
-                context.user_data["previous_state"] = "main"
-                return None
-            
-            # Implement the rest of back button logic for other states
-
-    # مدیریت دکمه تنظیمات
-    if text == TRANSLATIONS[lang]["settings_button"]:
-        return await settings_handler(update, context)
-
-    # مدیریت دکمه تبدیل متن به صدا
-    if text == TRANSLATIONS[lang]["tts_button"]:
-        try:
-            # استفاده از دسته‌بندی‌های حس با ترجمه مناسب بر اساس زبان
-            tone_categories = []
-            for category in TONES.keys():
-                translated_category = TONE_CATEGORIES_TRANSLATION[lang].get(category, category)
-                tone_categories.append([translated_category])
-            
-            # اضافه کردن گزینه ورود دستی لحن و دکمه بازگشت
-            tone_categories.append([TRANSLATIONS[lang]["manual_tone"]])
-            tone_categories.append([TRANSLATIONS[lang]["back_button"]])
-            
-            reply_markup = ReplyKeyboardMarkup(tone_categories, resize_keyboard=True)
-            
+        if current_state == "sample_tone_category":
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
-                f"{TRANSLATIONS[lang]['tts_title']}\n\n"
-                f"{TRANSLATIONS[lang]['tts_description']}",
+                "🎙 <b>انتخاب صدا برای نمونه</b>\n\n"
+                "لطفاً یکی از صداهای زیر را انتخاب کنید تا نمونه آن را بشنوید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "sample_voice"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if current_state == "sample_tone":
+            category = context.user_data.get("selected_category")
+            keyboard = [
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎭 <b>انتخاب دسته‌بندی حس و لحن</b>\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "sample_tone_category"
+            context.user_data["previous_state"] = "sample_voice"
+            return None
+        
+        if previous_state == "main" or current_state == "assistant":
+            # Clear conversation history when going back to main menu
+            if "conversation_history" in context.user_data:
+                context.user_data["conversation_history"] = []
+            return await start(update, context)
+        
+        if previous_state == "select_tone_category":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if previous_state == "select_tone":
+            category = context.user_data.get("selected_category")
+            tones = TONES[category]
+            keyboard = []
+            for i in range(0, len(tones), 2):
+                row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                if i + 1 < len(tones):
+                    row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            category_names = {
+                "emotional": "لحن‌های احساسی",
+                "voice_styles": "لحن‌های گفتاری",
+                "character_affects": "لحن‌های نمایشی / شخصیتی",
+                "functional": "لحن‌های کاربردی"
+            }
+            await update.message.reply_text(
+                f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone"
+            context.user_data["previous_state"] = "select_tone_category"
+            return None
+        
+        if previous_state == "manual_feeling":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 شما به بخش انتخاب لحن و حس منتقل شدید!\n\n"
+                "لطفاً یکی از دسته‌بندی‌های زیر را انتخاب کنید یا حس را به‌صورت دستی وارد کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+        
+        if previous_state == "text":
+            if context.user_data.get("feeling_manual", False):
+                await update.message.reply_text(
+                    "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
+                    "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                context.user_data["state"] = "manual_feeling"
+                context.user_data["previous_state"] = "select_tone_category"
+            else:
+                category = context.user_data.get("selected_category")
+                tones = TONES[category]
+                keyboard = []
+                for i in range(0, len(tones), 2):
+                    row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                    if i + 1 < len(tones):
+                        row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                category_names = {
+                    "emotional": "لحن‌های احساسی",
+                    "voice_styles": "لحن‌های گفتاری",
+                    "character_affects": "لحن‌های نمایشی / شخصیتی",
+                    "functional": "لحن‌های کاربردی"
+                }
+                await update.message.reply_text(
+                    f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                    reply_markup=reply_markup
+                )
+                context.user_data["state"] = "select_tone"
+                context.user_data["previous_state"] = "select_tone_category"
+            return None
+        
+        if previous_state == "voice":
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "voice"
+            context.user_data["previous_state"] = "text"
+            return None
+        
+        if previous_state == "select_format":
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "voice"
+            context.user_data["previous_state"] = "text"
+            return None
+
+    if text == "🎙 تبدیل متن به صدا":
+        try:
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 <b>تبدیل متن به صدا - انتخاب حس و لحن</b>\n\n"
+                "برای شروع فرآیند تبدیل متن به صدا، ابتدا نیاز است حس و لحن مناسب را انتخاب کنید.\n"
+                "لحن مناسب باعث می‌شود صدای تولید شده طبیعی‌تر و تاثیرگذارتر شود.\n\n"
+                "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
                 reply_markup=reply_markup,
                 parse_mode="HTML"
             )
@@ -1141,15 +962,21 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"خطا در نمایش منوی لحن‌ها برای کاربر {user_id}: {str(e)}")
             return None
 
-    # مدیریت دکمه دستیار هوشمند
-    if text == TRANSLATIONS[lang]["assistant_button"]:
+    if text == "🤖 دستیار هوشمند":
         try:
-            keyboard = [[TRANSLATIONS[lang]["back_button"]]]
+            keyboard = [["🔙 برگشت"]]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             
             # Mensaje inicial del asistente
             greeting_message = await update.message.reply_text(
-                TRANSLATIONS[lang]["assistant_greeting"].format(user_fullname=user_fullname),
+                f"👋 <b>سلام {user_fullname} عزیز!</b>\n\n"
+                "من دستیار هوشمند ربات تبدیل متن به صدا هستم و آماده‌ام تا به شما کمک کنم!\n\n"
+                "🔹 <b>چطور می‌توانم کمکتان کنم؟</b>\n"
+                "• سوالات خود درباره تبدیل متن به صدا را بپرسید\n"
+                "• راهنمایی درباره انتخاب حس و لحن مناسب بخواهید\n"
+                "• تصویر ارسال کنید تا آن را تحلیل کنم\n"
+                "• پیشنهاد متن مناسب برای صداگذاری بخواهید\n\n"
+                "منتظر پیام شما هستم... 💬",
                 reply_markup=reply_markup,
                 parse_mode="HTML"
             )
@@ -1172,7 +999,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data["conversation_history"] = []
                 
             # Add system welcome message to history
-            welcome_msg = TRANSLATIONS[lang]["assistant_greeting"].format(user_fullname=user_fullname)
+            welcome_msg = f"سلام {user_fullname} عزیز! من دستیار هوشمند ربات تبدیل متن به صدا هستم و آماده‌ام تا به شما کمک کنم!"
             context.user_data["conversation_history"].append({"role": "assistant", "content": welcome_msg})
             
             return None
@@ -1181,118 +1008,81 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return None
 
     # Handle new button - Voice and Feeling Samples
-    if text == TRANSLATIONS[lang]["sample_button"]:
-        context.user_data["state"] = "sample"
-        context.user_data["previous_state"] = "main"
-        
-        tone_categories = []
-        for category in TONES.keys():
-            # Use translated category name based on language
-            translated_category = TONE_CATEGORIES_TRANSLATION[lang].get(category, category)
-            tone_categories.append([translated_category])
-        
-        tone_categories.append([TRANSLATIONS[lang]["back_button"]])
-        
-        reply_markup = ReplyKeyboardMarkup(tone_categories, resize_keyboard=True)
-        
-        await update.message.reply_text(
-            TRANSLATIONS[lang]["select_tone_category"],
-            reply_markup=reply_markup
-        )
-        return None
+    if text == "🔊 نمونه صدا و حس ها":
+        try:
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "🎙 <b>نمونه صدا و حس - انتخاب صدا</b>\n\n"
+                "به بخش نمونه صدا و حس خوش آمدید!\n"
+                "در این بخش می‌توانید نمونه‌هایی از صداها و حس‌های مختلف را بشنوید تا بهترین انتخاب را داشته باشید.\n\n"
+                "📌 <b>لطفاً ابتدا یکی از صداها را انتخاب کنید:</b>",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "sample_voice"
+            context.user_data["previous_state"] = "main"
+            return None
+        except Exception as e:
+            logger.error(f"خطا در نمایش منوی نمونه صداها برای کاربر {user_id}: {str(e)}")
+            return None
 
     if "state" in context.user_data:
-        # انتخاب دسته‌بندی حس - Select tone category
-        if context.user_data["state"] == "sample":
-            # Get original Persian category key
-            selected_category = None
-            for persian_category, translated_name in TONE_CATEGORIES_TRANSLATION[lang].items():
-                if text == translated_name:
-                    selected_category = persian_category
-                    break
-                    
-            # If it's a direct Persian category (for backward compatibility)
-            if selected_category is None and text in TONES:
-                selected_category = text
-                
-            if selected_category in TONES:
-                context.user_data["selected_category"] = selected_category
-                context.user_data["state"] = "select_tone"
-                context.user_data["previous_state"] = "sample"
-                
-                # Create a keyboard with the tones from the selected category
-                tones_keyboard = []
-                for tone in TONES[selected_category]:
-                    tones_keyboard.append([f"{tone['emoji']} {tone['name']}"])
-                tones_keyboard.append([TRANSLATIONS[lang]["back_button"]])
-                
-                reply_markup = ReplyKeyboardMarkup(tones_keyboard, resize_keyboard=True)
-                
-                # Display category name in the user's language
-                category_display_name = TONE_CATEGORIES_TRANSLATION[lang].get(selected_category, selected_category)
-                
-                if lang == "fa":
-                    message = f"لطفاً یک حس از دسته {category_display_name} انتخاب کنید:"
+        # انتخاب دسته‌بندی لحن
+        if context.user_data["state"] == "select_tone_category":
+            category_map = {
+                "✍️ لحن و حس دستی": "manual_feeling",
+                "📢 لحن‌های کاربردی": "functional",
+                "👑 لحن‌های نمایشی / شخصیتی": "character_affects",
+                "🎤 لحن‌های گفتاری": "voice_styles",
+                "🎭 لحن‌های احساسی": "emotional"
+            }
+            if text in category_map:
+                if text == "✍️ لحن و حس دستی":
+                    context.user_data["state"] = "manual_feeling"
+                    context.user_data["previous_state"] = "select_tone_category"
+                    context.user_data["feeling_manual"] = True
+                    await update.message.reply_text(
+                        "لطفاً حس یا دستورالعمل‌های صدا رو وارد کنید (حداکثر 500 کاراکتر).\n"
+                        "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    )
+                    return None
                 else:
-                    message = f"Please select a tone from the {category_display_name} category:"
-                
-                await update.message.reply_text(
-                    message,
-                    reply_markup=reply_markup
-                )
-                return None
-        
-        # انتخاب دسته‌بندی لحن - Select tone category for TTS
-        elif context.user_data["state"] == "select_tone_category":
-            # برای حالت ورود لحن دستی - For manual tone input
-            if text == TRANSLATIONS[lang]["manual_tone"]:
-                context.user_data["state"] = "manual_feeling"
-                context.user_data["previous_state"] = "select_tone_category"
-                context.user_data["feeling_manual"] = True
-                await update.message.reply_text(
-                    TRANSLATIONS[lang]["enter_manual_tone"],
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
-                )
-                return None
-            
-            # تطبیق نام ترجمه شده به کلید فارسی - Map translated name to Persian key
-            selected_category = None
-            for persian_category, translated_name in TONE_CATEGORIES_TRANSLATION[lang].items():
-                if text == translated_name:
-                    selected_category = persian_category
-                    break
-                    
-            # If it's a direct Persian category (for backward compatibility)
-            if selected_category is None and text in TONES:
-                selected_category = text
-                
-            if selected_category in TONES:
-                tones = TONES[selected_category]
-                context.user_data["selected_category"] = selected_category
-                context.user_data["state"] = "select_tone"
-                context.user_data["previous_state"] = "select_tone_category"
-                
-                # Create a keyboard with the tones from the selected category
-                tones_keyboard = []
-                for tone in TONES[selected_category]:
-                    tones_keyboard.append([f"{tone['emoji']} {tone['name']}"])
-                tones_keyboard.append([TRANSLATIONS[lang]["back_button"]])
-                
-                reply_markup = ReplyKeyboardMarkup(tones_keyboard, resize_keyboard=True)
-                
-                # Display category name in the user's language
-                category_display_name = TONE_CATEGORIES_TRANSLATION[lang].get(selected_category, selected_category)
-                
-                if lang == "fa":
-                    message = f"لطفاً یک حس از دسته {category_display_name} انتخاب کنید:"
-                else:
-                    message = f"Please select a tone from the {category_display_name} category:"
-                
-                await update.message.reply_text(
-                    message,
-                    reply_markup=reply_markup
-                )
-                return None
+                    category = category_map[text]
+                    tones = TONES[category]
+                    keyboard = []
+                    for i in range(0, len(tones), 2):
+                        row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                        if i + 1 < len(tones):
+                            row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                        keyboard.append(row)
+                    keyboard.append(["🔙 برگشت"])
+                    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                    category_names = {
+                        "emotional": "لحن‌های احساسی",
+                        "voice_styles": "لحن‌های گفتاری",
+                        "character_affects": "لحن‌های نمایشی / شخصیتی",
+                        "functional": "لحن‌های کاربردی"
+                    }
+                    await update.message.reply_text(
+                        f"🎙 {category_names[category]}\n\nلطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                        reply_markup=reply_markup
+                    )
+                    context.user_data["state"] = "select_tone"
+                    context.user_data["previous_state"] = "select_tone_category"
+                    context.user_data["selected_category"] = category
+                    return None
 
         # انتخاب حس
         elif context.user_data["state"] == "select_tone":
@@ -1308,20 +1098,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     context.user_data["previous_state"] = "select_tone"
                     context.user_data["feeling_manual"] = False
                     await update.message.reply_text(
-                        TRANSLATIONS[lang]["enter_text"],
-                        reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                        "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
+                        "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                     )
                     return None
-            
-            # پیام خطا بر اساس زبان انتخاب شده
-            if lang == "fa":
-                error_message = "لطفاً یک حس معتبر از لیست انتخاب کنید."
-            else:
-                error_message = "Please select a valid tone from the list."
-                
             await update.message.reply_text(
-                error_message,
-                reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                "لطفاً یک حس معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
             )
             return None
 
@@ -1330,17 +1114,18 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             feeling = text
             if len(feeling) > MAX_FEELING_LENGTH:
                 await update.message.reply_text(
-                    TRANSLATIONS[lang]["error_feeling_length"].format(length=len(feeling), max_length=MAX_FEELING_LENGTH),
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    f"خطا: حس شما {len(feeling)} کاراکتر است. لطفاً حسی با حداکثر {MAX_FEELING_LENGTH} کاراکتر وارد کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
             context.user_data["feeling"] = feeling
-            context.user_data["feeling_name"] = "دستی" if lang == "fa" else "Custom"
+            context.user_data["feeling_name"] = "دستی"
             context.user_data["state"] = "text"
             context.user_data["previous_state"] = "manual_feeling"
             await update.message.reply_text(
-                TRANSLATIONS[lang]["enter_text"],
-                reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                "حالا متن موردنظر برای تبدیل به صدا رو وارد کنید (حداکثر 1000 کاراکتر).\n"
+                "مثال: Yeah, yeah, ya got Big Apple Insurance",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
             )
             return None
         
@@ -1348,8 +1133,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif context.user_data["state"] == "text":
             if len(text) > MAX_TEXT_LENGTH:
                 await update.message.reply_text(
-                    TRANSLATIONS[lang]["error_text_length"].format(length=len(text), max_length=MAX_TEXT_LENGTH),
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    f"خطا: متن شما {len(text)} کاراکتر است. لطفاً متنی با حداکثر {MAX_TEXT_LENGTH} کاراکتر وارد کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
             context.user_data["text"] = text
@@ -1366,10 +1151,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     row = []
             if row:
                 keyboard.append(row)
-            keyboard.append([TRANSLATIONS[lang]["back_button"]])
+            keyboard.append(["🔙 برگشت"])
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text(
-                TRANSLATIONS[lang]["select_voice"],
+                "لطفاً یکی از صداهای زیر رو انتخاب کنید:",
                 reply_markup=reply_markup
             )
             return None
@@ -1386,23 +1171,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data["voice_persian"] = voice_persian  # Guardar el nombre persa para mostrar
                 context.user_data["state"] = "select_format"
                 context.user_data["previous_state"] = "voice"
-                keyboard = [["MP3", "WAV", "OGG"], [TRANSLATIONS[lang]["back_button"]]]
+                keyboard = [["MP3", "WAV", "OGG"], ["🔙 برگشت"]]
                 reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
                 await update.message.reply_text(
-                    TRANSLATIONS[lang]["select_format"],
+                    "لطفاً فرمت صوتی موردنظر را انتخاب کنید:",
                     reply_markup=reply_markup
                 )
                 return None
             else:
-                # پیام خطا بر اساس زبان انتخاب شده
-                if lang == "fa":
-                    error_message = "لطفاً یک صدای معتبر از لیست انتخاب کنید."
-                else:
-                    error_message = "Please select a valid voice from the list."
-                
                 await update.message.reply_text(
-                    error_message,
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    "لطفاً یک صدای معتبر از لیست انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
         
@@ -1410,15 +1189,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif context.user_data["state"] == "select_format":
             audio_format = text.lower()
             if audio_format not in SUPPORTED_FORMATS:
-                # پیام خطا بر اساس زبان انتخاب شده
-                if lang == "fa":
-                    error_message = "لطفاً یک فرمت معتبر (MP3، WAV، OGG) انتخاب کنید."
-                else:
-                    error_message = "Please select a valid format (MP3, WAV, OGG)."
-                
                 await update.message.reply_text(
-                    error_message,
-                    reply_markup=ReplyKeyboardMarkup([["MP3", "WAV", "OGG"], [TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    "لطفاً یک فرمت معتبر (MP3، WAV، OGG) انتخاب کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["MP3", "WAV", "OGG"], ["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
             text = context.user_data["text"]
@@ -1483,40 +1256,26 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if success:
                     try:
                         with open(output_file, "rb") as audio:
-                            # تنظیم متن توضیحات بر اساس زبان انتخاب شده
-                            if lang == "fa":
-                                caption = f"🎙 <b>تبدیل متن به صدا</b>\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {feeling_name}\n• <b>فرمت:</b> {audio_format.upper()}"
-                                title = f"صدای تولید شده - {voice_persian}"
-                            else:
-                                caption = f"🎙 <b>Text to Speech</b>\n\n• <b>Voice:</b> {voice_persian}\n• <b>Tone:</b> {feeling_name}\n• <b>Format:</b> {audio_format.upper()}"
-                                title = f"Generated Audio - {voice_persian}"
-                                
                             await update.message.reply_audio(
                                 audio=audio,
-                                caption=caption,
-                                title=title,
+                                caption=f"🎙 <b>تبدیل متن به صدا</b>\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {feeling_name}\n• <b>فرمت:</b> {audio_format.upper()}",
+                                title=f"صدای تولید شده - {voice_persian}",
                                 parse_mode="HTML"
                             )
                         os.remove(output_file)
                         logger.info(f"فایل صوتی ارسال و حذف شد برای کاربر {user_id}: {output_file}")
                         
-                        # بازگشت به صفحه اصلی با پیام مناسب زبان
-                        keyboard = [
-                            [TRANSLATIONS[lang]["tts_button"], TRANSLATIONS[lang]["assistant_button"]], 
-                            [TRANSLATIONS[lang]["sample_button"]],
-                            [TRANSLATIONS[lang]["settings_button"]]
-                        ]
+                        # بازگشت به صفحه اصلی
+                        keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔊 نمونه صدا و حس ها"]]
                         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-                        
                         await update.message.reply_text(
-                            TRANSLATIONS[lang]["audio_success_message"],
+                            "✅ <b>فایل صوتی با موفقیت تولید شد!</b>\n\n"
+                            "برای تولید صدای جدید یا استفاده از سایر امکانات، یکی از دکمه‌های زیر را انتخاب کنید:",
                             reply_markup=reply_markup,
                             parse_mode="HTML"
                         )
                         context.user_data.clear()
                         context.user_data["state"] = "main"
-                        # حفظ زبان انتخاب شده کاربر
-                        context.user_data["language"] = lang
                             
                     except Exception as e:
                         logger.error(f"خطا در ارسال فایل صوتی برای کاربر {user_id}: {str(e)}")
@@ -1604,7 +1363,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Responder directamente al mensaje original
             await update.message.reply_text(
                 response,
-                reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True),
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True),
                 reply_to_message_id=message_id
             )
             return None
@@ -1622,7 +1381,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 keyboard = [
                     ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
                     ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
-                    [TRANSLATIONS[lang]["back_button"]]
+                    ["🔙 برگشت"]
                 ]
                 reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
                 await update.message.reply_text(
@@ -1635,7 +1394,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await update.message.reply_text(
                     "❌ لطفاً یک صدای معتبر از لیست انتخاب کنید.",
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
                 
@@ -1659,7 +1418,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if i + 1 < len(tones):
                         row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
                     keyboard.append(row)
-                keyboard.append([TRANSLATIONS[lang]["back_button"]])
+                keyboard.append(["🔙 برگشت"])
                 
                 reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
                 category_names = {
@@ -1682,7 +1441,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await update.message.reply_text(
                     "❌ لطفاً یکی از دسته‌بندی‌های موجود را انتخاب کنید.",
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
                 
@@ -1695,7 +1454,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not category or not voice:
                 await update.message.reply_text(
                     "❌ مشکلی در فرآیند انتخاب پیش آمد. لطفاً دوباره تلاش کنید.",
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
                 
@@ -1710,7 +1469,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not selected_tone:
                 await update.message.reply_text(
                     "❌ لطفاً یک حس معتبر از لیست انتخاب کنید.",
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
                 
@@ -1779,18 +1538,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if success:
                     try:
                         with open(output_file, "rb") as audio:
-                            # تنظیم متن توضیحات بر اساس زبان انتخاب شده
-                            if lang == "fa":
-                                caption = f"🎙 <b>نمونه صدا</b>\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {tone_name}\n\n<b>متن:</b>\n{sample_text}"
-                                title = f"نمونه صدای {voice_persian} - {tone_name}"
-                            else:
-                                caption = f"🎙 <b>Voice Sample</b>\n\n• <b>Voice:</b> {voice_persian}\n• <b>Tone:</b> {tone_name}\n\n<b>Text:</b>\n{sample_text}"
-                                title = f"Voice Sample {voice_persian} - {tone_name}"
-                                
                             await update.message.reply_audio(
                                 audio=audio,
-                                caption=caption,
-                                title=title,
+                                caption=f"🎙 <b>نمونه صدا</b>\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {tone_name}\n\n<b>متن:</b>\n{sample_text}",
+                                title=f"نمونه صدای {voice_persian} - {tone_name}",
                                 parse_mode="HTML"
                             )
                         
@@ -1802,47 +1553,32 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                     except Exception as e:
                         logger.error(f"خطا در ارسال فایل صوتی نمونه برای کاربر {user_id}: {str(e)}")
-                        
-                        # پیام خطا بر اساس زبان انتخاب شده
-                        if lang == "fa":
-                            error_message = "❌ خطا در ارسال فایل صوتی. لطفاً دوباره امتحان کنید."
-                        else:
-                            error_message = "❌ Error sending audio file. Please try again."
-                            
                         await update.message.reply_text(
-                            error_message,
-                            reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                            "❌ خطا در ارسال فایل صوتی. لطفاً دوباره تلاش کنید.",
+                            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                         )
+                        
+                        # Remove temp file if it exists
                         try:
                             if os.path.exists(output_file):
                                 os.remove(output_file)
                         except Exception:
-                            logger.warning(f"ناتوانی در حذف فایل صوتی برای کاربر {user_id}: {output_file}")
+                            pass
+                            
                 else:
-                    # پیام خطا بر اساس زبان انتخاب شده
-                    if lang == "fa":
-                        error_message = "❌ خطا در تولید نمونه صدا. لطفاً دوباره تلاش کنید."
-                    else:
-                        error_message = "❌ Error generating sample audio. Please try again."
-                        
                     await update.message.reply_text(
-                        error_message,
-                        reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                        "❌ خطا در تولید نمونه صدا. لطفاً دوباره تلاش کنید.",
+                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                     )
                     
             except Exception as e:
                 logger.error(f"خطا در فرآیند تولید نمونه صدا برای کاربر {user_id}: {str(e)}")
-                
-                # پیام خطا بر اساس زبان انتخاب شده
-                if lang == "fa":
-                    error_message = "❌ متأسفانه مشکلی در تولید نمونه صدا پیش آمد. لطفاً دوباره تلاش کنید."
-                else:
-                    error_message = "❌ Sorry, there was an issue generating the sample audio. Please try again."
-                    
                 await update.message.reply_text(
-                    error_message,
-                    reply_markup=ReplyKeyboardMarkup([[TRANSLATIONS[lang]["back_button"]]], resize_keyboard=True)
+                    "❌ متأسفانه مشکلی در تولید نمونه صدا پیش آمد. لطفاً دوباره تلاش کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
+                
+            return None
 
 # Initialize the Telegram application
 # Create the Application outside of the main function
