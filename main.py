@@ -23,6 +23,7 @@ import base64
 import uvicorn
 import threading
 from datetime import datetime
+from collections import deque
 
 # تنظیم لاگینگ
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -40,7 +41,10 @@ ANIMATED_PROGRESS_FRAMES = [
 
 # Task trackers
 API_TASKS = {}
-# صف پردازش برای درخواست‌ها
+USER_QUEUE = deque()
+PROCESSING = {}
+ACTIVE_USERS = {}
+ANIMATED_PROGRESS_FRAMES = ["⏳", "⌛️"]
 PROCESSING_QUEUE = {}
 QUEUE_LOCK = {}
 
@@ -185,6 +189,8 @@ MAX_TEXT_LENGTH = 1000
 MAX_FEELING_LENGTH = 500
 MAX_HISTORY = 50  # Maximum number of messages to keep in history
 MAX_CHARACTERS = 5  # حداکثر تعداد شخصیت‌های مجاز در داستان
+MAX_STORY_SEGMENTS = 10  # حداکثر تعداد قطعات داستان
+AUDIO_SEGMENT_SILENCE = 500  # میلی‌ثانیه سکوت بین سگمنت‌های صوتی
 
 # کانال اجباری
 REQUIRED_CHANNEL = "@Dezhcode"
@@ -1208,15 +1214,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return None
         
-        # انتخاب فرمت صوتی
+     # انتخاب فرمت صوتی
         elif context.user_data["state"] == "select_format":
-            audio_format = text.lower()
-            if audio_format not in SUPPORTED_FORMATS:
+            format_text = text.upper()  # تبدیل متن به حروف بزرگ
+            if format_text not in SUPPORTED_FORMATS:
                 await update.message.reply_text(
                     "لطفاً یک فرمت معتبر (MP3، WAV، OGG) انتخاب کنید.",
                     reply_markup=ReplyKeyboardMarkup([["MP3", "WAV", "OGG"], ["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
+                
+            audio_format = format_text.lower()  # تبدیل به حروف کوچک برای استفاده
             text = context.user_data["text"]
             instructions = context.user_data["feeling"]
             voice = context.user_data["voice"]  # Nombre original para la API
