@@ -406,55 +406,68 @@ def call_api(prompt, image=None, conversation_history=None, file_url=None, user_
 def process_image(image_data):
     return Image.open(io.BytesIO(image_data))
 
-def generate_audio(text, instructions, voice, output_file, audio_format="mp3"):
-    logger.info(f"تولید صدا با متن: {text[:50]}..., حس: {instructions[:50]}..., صدا: {voice}, فرمت: {audio_format}")
-    if voice not in SUPPORTED_VOICES:
-        logger.error(f"صدا {voice} پشتیبانی نمی‌شود")
-        return False
-    if audio_format not in SUPPORTED_FORMATS:
-        logger.error(f"فرمت {audio_format} پشتیبانی نمی‌شود")
-        return False
-    
-    prompt = (
-        f"Deliver the following text with the feeling described below:\n"
-        f"Instructions: {instructions}\n\n"
-        f"Now please repeat the text I give you with the same feeling I gave you, without adding anything to the text. Repeat the text:\n"
-        f"{text}"
-    )
-    
-    base_url = "https://text.pollinations.ai/"
-    encoded_prompt = urllib.parse.quote(prompt)
-    url = f"{base_url}{encoded_prompt}?model=openai-audio&voice={voice}"
-    
+async def generate_audio(text, voice, feeling, output_format, user_id):
+    """Generate an audio file from text using the specified voice and feeling"""
     try:
-        logger.info(f"ارسال درخواست GET به API: {url[:100]}...")
-        response = requests.get(url, timeout=30)
-        if response.status_code == 200:
-            temp_file = f"temp_{uuid4()}.mp3"
-            with open(temp_file, "wb") as f:
-                f.write(response.content)
-            logger.info(f"فایل صوتی موقت ذخیره شد: {temp_file}")
+        # Check if the output format is supported
+        if output_format.lower() not in [fmt.lower() for fmt in SUPPORTED_FORMATS]:
+            logger.error(f"فرمت صوتی نامعتبر: {output_format}")
+            return None
             
-            # تبدیل فرمت با pydub
-            audio = AudioSegment.from_file(temp_file)
-            audio.export(output_file, format=audio_format)
-            logger.info(f"فایل صوتی با فرمت {audio_format} ذخیره شد: {output_file}")
-            
-            # حذف فایل موقت
-            os.remove(temp_file)
-            return True
+        # ایجاد نام فایل خروجی
+        output_file = f"temp/audio_{user_id}_{get_current_time_str()}.{output_format.lower()}"
+        os.makedirs("temp", exist_ok=True)
+        
+        # تنظیمات API
+        url = "https://api.openai.com/v1/audio/speech"
+        api_key = "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"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # ایجاد درخواست با دستورالعمل احساس
+        if feeling:
+            instructions = feeling
+            # اضافه کردن دستورالعمل برای کنترل سرعت در صورت نیاز
+            if "سریع" in feeling.lower():
+                instructions += " Speak quickly."
+            elif "آرام" in feeling.lower() or "آهسته" in feeling.lower():
+                instructions += " Speak slowly and deliberately."
         else:
-            logger.error(f"خطا در API Pollinations: کد وضعیت {response.status_code}, پاسخ: {response.text}")
-            return False
-    except requests.RequestException as e:
-        logger.error(f"خطا در ارتباط با API Pollinations: {str(e)}")
-        return False
-    except IOError as e:
-        logger.error(f"خطا در ذخیره یا تبدیل فایل صوتی: {str(e)}")
-        return False
+            instructions = ""
+        
+        data = {
+            "model": "tts-1",
+            "input": text,
+            "voice": voice,
+            "response_format": output_format.lower()
+        }
+        
+        if instructions:
+            data["voice_settings"] = {
+                "stability": 0.5,
+                "similarity_boost": 0.8
+            }
+            data["instructions"] = instructions
+        
+        # ارسال درخواست به API
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            # ذخیره فایل صوتی
+            with open(output_file, "wb") as f:
+                f.write(response.content)
+            
+            logger.info(f"فایل صوتی با موفقیت تولید شد: {output_file}")
+            return output_file
+        else:
+            logger.error(f"خطا در تولید صدا: {response.status_code} - {response.text}")
+            return None
     except Exception as e:
-        logger.error(f"خطای غیرمنتظره در تولید صدا: {str(e)}")
-        return False
+        logger.error(f"خطا در تولید صدا: {str(e)}")
+        return None
 
 def create_progress_bar(percentage):
     filled = percentage // 5
@@ -3371,36 +3384,46 @@ MAX_STORY_SEGMENTS = 10  # حداکثر تعداد قطعات داستان
 AUDIO_SEGMENT_SILENCE = 500  # میلی‌ثانیه سکوت بین سگمنت‌های صوتی
 
 # تابع برای ادغام فایل‌های صوتی
-def merge_audio_files(audio_files, output_file, audio_format="mp3"):
-    """ادغام چندین فایل صوتی به یک فایل واحد"""
+async def merge_audio_files(audio_files, audio_format, user_id):
+    """ادغام چندین فایل صوتی در یک فایل"""
     try:
-        if not audio_files:
-            logger.error("لیست فایل‌های صوتی خالی است")
-            return False
-            
-        # بارگیری اولین فایل
-        combined = AudioSegment.from_file(audio_files[0])
-        silence = AudioSegment.silent(duration=AUDIO_SEGMENT_SILENCE)  # سکوت بین قطعات
+        # ساخت دایرکتوری temp اگر وجود ندارد
+        os.makedirs("temp", exist_ok=True)
         
-        # اضافه کردن بقیه فایل‌ها
-        for audio_file in audio_files[1:]:
-            next_segment = AudioSegment.from_file(audio_file)
-            combined = combined + silence + next_segment
-            
-        # ذخیره فایل ترکیبی
-        combined.export(output_file, format=audio_format)
+        # تولید نام فایل خروجی
+        output_file = f"temp/merged_{user_id}_{get_current_time_str()}.{audio_format.lower()}"
         
-        # حذف فایل‌های اصلی
-        for audio_file in audio_files:
-            try:
-                os.remove(audio_file)
-            except Exception as e:
-                logger.warning(f"خطا در حذف فایل موقت {audio_file}: {str(e)}")
+        # بررسی وجود فایل‌ها
+        for file in audio_files:
+            if not os.path.exists(file):
+                logger.error(f"فایل صوتی وجود ندارد: {file}")
+                return None
                 
-        return True
+        # ادغام فایل‌ها با pydub
+        combined = AudioSegment.empty()
+        for file in audio_files:
+            sound = AudioSegment.from_file(file)
+            combined += sound
+            
+        # افزودن فاصله بین قطعات صوتی
+        final_audio = AudioSegment.empty()
+        for i, file in enumerate(audio_files):
+            sound = AudioSegment.from_file(file)
+            final_audio += sound
+            
+            # اضافه کردن مکث بین قطعات (به جز آخرین قطعه)
+            if i < len(audio_files) - 1:
+                silence = AudioSegment.silent(duration=800)  # 800ms مکث
+                final_audio += silence
+                
+        # ذخیره فایل نهایی
+        final_audio.export(output_file, format=audio_format.lower())
+        
+        logger.info(f"فایل‌های صوتی با موفقیت ادغام شدند: {output_file}")
+        return output_file
     except Exception as e:
         logger.error(f"خطا در ادغام فایل‌های صوتی: {str(e)}")
-        return False
+        return None
 
 def get_current_time_str():
     """تولید رشته زمانی برای استفاده در نام فایل‌ها"""
