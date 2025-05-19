@@ -2793,7 +2793,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if text not in SUPPORTED_FORMATS:
                 await update.message.reply_text(
                     "❌ لطفاً یک قالب معتبر انتخاب کنید.",
-                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                    reply_markup=ReplyKeyboardMarkup([["MP3", "WAV", "OGG"], ["🔙 برگشت"]], resize_keyboard=True)
                 )
                 return None
                 
@@ -2804,6 +2804,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["state"] = "story_add_character"
             context.user_data["previous_state"] = "story_select_format"
             context.user_data["story_segments"] = []
+            context.user_data["story_characters"] = []  # مقداردهی اولیه آرایه شخصیت‌ها
             
             await update.message.reply_text(
                 "🎭 <b>افزودن شخصیت جدید</b>\n\n"
