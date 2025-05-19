@@ -40,6 +40,15 @@ ANIMATED_PROGRESS_FRAMES = [
 # Task trackers
 API_TASKS = {}
 
+# صف پردازش‌های داستان پیشرفته
+STORY_QUEUE = []
+STORY_PROCESSING = False
+
+# محدودیت‌های داستان پیشرفته
+MAX_CHARACTERS = 5
+MAX_STORY_PARTS = 10
+MAX_QUEUE_SIZE = 5
+
 # تابع برای نمایش پروگرس بار به صورت انیمیشن در دکمه شیشه‌ای
 async def show_animated_progress(update: Update, context: ContextTypes.DEFAULT_TYPE, task_id: str, initial_text: str):
     """نمایش پروگرس بار انیمیشنی در دکمه شیشه‌ای تا زمان دریافت پاسخ از API"""
@@ -524,7 +533,8 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         keyboard = [
             ["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], 
-            ["🔊 نمونه صدا و حس ها", "📑 پردازش دسته‌ای"]
+            ["🔊 نمونه صدا و حس ها", "📑 پردازش دسته‌ای"],
+            ["📚 ساخت داستان پیشرفته"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -537,7 +547,8 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
                 "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
                 "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n"
-                "• چندین متن را به صورت همزمان به صدا تبدیل کنید\n\n"
+                "• چندین متن را به صورت همزمان به صدا تبدیل کنید\n"
+                "• داستان‌های پیشرفته با چندین شخصیت و صدای متفاوت بسازید\n\n"
                 "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
                 reply_markup=reply_markup,
                 parse_mode="HTML"
@@ -550,7 +561,8 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
                 "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
                 "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n"
-                "• چندین متن را به صورت همزمان به صدا تبدیل کنید\n\n"
+                "• چندین متن را به صورت همزمان به صدا تبدیل کنید\n"
+                "• داستان‌های پیشرفته با چندین شخصیت و صدای متفاوت بسازید\n\n"
                 "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
                 reply_markup=reply_markup,
                 parse_mode="HTML"
@@ -2071,6 +2083,760 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["previous_state"] = "batch_voice"
             return None
 
+    if text == "📚 ساخت داستان پیشرفته":
+        try:
+            # بررسی وضعیت صف
+            queue_position = next((i+1 for i, req in enumerate(STORY_QUEUE) if req["update"].effective_user.id == user_id), None)
+            
+            if queue_position:
+                await update.message.reply_text(
+                    f"⏳ <b>شما در صف انتظار هستید</b>\n\n"
+                    f"موقعیت شما در صف: {queue_position} از {len(STORY_QUEUE)}\n\n"
+                    "لطفاً منتظر بمانید تا نوبت شما برسد. پردازش هر داستان ممکن است چند دقیقه طول بکشد.",
+                    parse_mode="HTML",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            
+            # بررسی تعداد درخواست‌های موجود در صف
+            if len(STORY_QUEUE) >= MAX_QUEUE_SIZE:
+                await update.message.reply_text(
+                    "❌ <b>صف پردازش داستان پر است</b>\n\n"
+                    "در حال حاضر تعداد زیادی درخواست در صف انتظار وجود دارد. لطفاً چند دقیقه دیگر مجدداً تلاش کنید.",
+                    parse_mode="HTML",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            
+            # شروع فرآیند ساخت داستان پیشرفته
+            context.user_data["state"] = "story_select_character"
+            context.user_data["previous_state"] = "main"
+            context.user_data["story_data"] = {
+                "characters": [],
+                "story_parts": [],
+                "background_music": None,
+                "background_volume": 0.2,
+                "audio_format": "mp3"
+            }
+            
+            # ارسال پیام توضیحات
+            await update.message.reply_text(
+                "📚 <b>ساخت داستان پیشرفته</b>\n\n"
+                "به بخش ساخت داستان پیشرفته خوش آمدید!\n"
+                "با این قابلیت می‌توانید داستانی با چندین شخصیت و صدای متفاوت بسازید.\n\n"
+                "ابتدا باید شخصیت‌های داستان خود را تعریف کنید، سپس به هر شخصیت صدا و حس اختصاص دهید و متن مربوط به آن را بنویسید.\n\n"
+                "• حداکثر تعداد شخصیت‌ها: 5\n"
+                "• حداکثر تعداد بخش‌های داستان: 10\n"
+                "• امکان اضافه کردن موسیقی پس‌زمینه\n\n"
+                "لطفاً برای شروع، اولین شخصیت داستان خود را انتخاب کنید:",
+                parse_mode="HTML"
+            )
+            
+            # نمایش لیست صداهای موجود برای انتخاب
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 3:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            
+            await update.message.reply_text(
+                "👤 <b>انتخاب شخصیت اول</b>\n\n"
+                "لطفاً یک صدا برای شخصیت اول داستان خود انتخاب کنید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"خطا در آغاز فرآیند ساخت داستان پیشرفته برای کاربر {user_id}: {str(e)}")
+            await update.message.reply_text(
+                "❌ خطایی در آغاز فرآیند ساخت داستان رخ داد. لطفاً دوباره تلاش کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+
+    # انتخاب شخصیت اول در داستان پیشرفته
+    elif context.user_data["state"] == "story_select_character":
+        voice_persian = text
+        
+        if voice_persian in PERSIAN_TO_ORIGINAL_VOICE:
+            voice = PERSIAN_TO_ORIGINAL_VOICE[voice_persian]
+            
+            # ذخیره موقت صدای انتخاب شده
+            context.user_data["temp_voice"] = voice
+            context.user_data["temp_voice_persian"] = voice_persian
+            
+            # درخواست نام شخصیت
+            context.user_data["state"] = "story_character_name"
+            context.user_data["previous_state"] = "story_select_character"
+            
+            await update.message.reply_text(
+                f"👤 <b>نام‌گذاری شخصیت با صدای {voice_persian}</b>\n\n"
+                "لطفاً یک نام برای این شخصیت وارد کنید:\n"
+                "(این نام برای شناسایی شخصیت در مراحل بعدی استفاده می‌شود)",
+                parse_mode="HTML",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        else:
+            await update.message.reply_text(
+                "❌ لطفاً یک صدای معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+    
+    # ورود نام شخصیت در داستان پیشرفته
+    elif context.user_data["state"] == "story_character_name":
+        character_name = text.strip()
+        
+        if not character_name:
+            await update.message.reply_text(
+                "❌ نام شخصیت نمی‌تواند خالی باشد. لطفاً یک نام وارد کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        if len(character_name) > 50:
+            await update.message.reply_text(
+                "❌ نام شخصیت بسیار طولانی است. لطفاً یک نام کوتاه‌تر انتخاب کنید (حداکثر 50 کاراکتر).",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        # بررسی تکراری نبودن نام
+        story_data = context.user_data.get("story_data", {})
+        existing_characters = story_data.get("characters", [])
+        
+        if any(c["name"] == character_name for c in existing_characters):
+            await update.message.reply_text(
+                "❌ این نام قبلاً برای شخصیتی استفاده شده است. لطفاً یک نام متفاوت انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        # ذخیره موقت نام شخصیت
+        context.user_data["temp_character_name"] = character_name
+        
+        # انتخاب حس و لحن
+        context.user_data["state"] = "story_select_tone_category"
+        context.user_data["previous_state"] = "story_character_name"
+        
+        keyboard = [
+            ["✍️ لحن و حس دستی"],
+            ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+            ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+            ["🔙 برگشت"]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await update.message.reply_text(
+            f"🎭 <b>انتخاب حس و لحن برای شخصیت «{character_name}»</b>\n\n"
+            "لطفاً دسته‌بندی حس و لحن را برای این شخصیت انتخاب کنید:",
+            reply_markup=reply_markup,
+            parse_mode="HTML"
+        )
+        return None
+
+    # انتخاب دسته‌بندی حس و لحن برای شخصیت داستان
+    elif context.user_data["state"] == "story_select_tone_category":
+        category_map = {
+            "✍️ لحن و حس دستی": "manual_feeling",
+            "📢 لحن‌های کاربردی": "functional",
+            "👑 لحن‌های نمایشی / شخصیتی": "character_affects",
+            "🎤 لحن‌های گفتاری": "voice_styles",
+            "🎭 لحن‌های احساسی": "emotional"
+        }
+        
+        if text in category_map:
+            if text == "✍️ لحن و حس دستی":
+                context.user_data["state"] = "story_manual_feeling"
+                context.user_data["previous_state"] = "story_select_tone_category"
+                
+                await update.message.reply_text(
+                    f"✍️ <b>ورود حس دستی برای شخصیت «{context.user_data['temp_character_name']}»</b>\n\n"
+                    "لطفاً حس یا دستورالعمل‌های صدا را برای این شخصیت وارد کنید (حداکثر 500 کاراکتر).\n"
+                    "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                    parse_mode="HTML",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            else:
+                category = category_map[text]
+                context.user_data["temp_tone_category"] = category
+                
+                tones = TONES[category]
+                keyboard = []
+                for i in range(0, len(tones), 2):
+                    row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                    if i + 1 < len(tones):
+                        row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                
+                category_names = {
+                    "emotional": "لحن‌های احساسی",
+                    "voice_styles": "لحن‌های گفتاری",
+                    "character_affects": "لحن‌های نمایشی / شخصیتی",
+                    "functional": "لحن‌های کاربردی"
+                }
+                
+                await update.message.reply_text(
+                    f"🎭 <b>انتخاب حس برای شخصیت «{context.user_data['temp_character_name']}»</b>\n\n"
+                    f"دسته‌بندی: {category_names[category]}\n\n"
+                    "لطفاً یکی از حس‌های زیر را انتخاب کنید:",
+                    reply_markup=reply_markup,
+                    parse_mode="HTML"
+                )
+                
+                context.user_data["state"] = "story_select_tone"
+                context.user_data["previous_state"] = "story_select_tone_category"
+                return None
+        else:
+            await update.message.reply_text(
+                "❌ لطفاً یک دسته‌بندی معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+    
+    # ورود حس دستی برای شخصیت
+    elif context.user_data["state"] == "story_manual_feeling":
+        feeling = text
+        
+        if len(feeling) > MAX_FEELING_LENGTH:
+            await update.message.reply_text(
+                f"❌ خطا: حس شما {len(feeling)} کاراکتر است. لطفاً حسی با حداکثر {MAX_FEELING_LENGTH} کاراکتر وارد کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        # ذخیره حس دستی
+        context.user_data["temp_feeling"] = feeling
+        context.user_data["temp_feeling_name"] = "دستی"
+        
+        # افزودن شخصیت به داستان
+        character_id = str(uuid4())
+        character = {
+            "id": character_id,
+            "name": context.user_data["temp_character_name"],
+            "voice": context.user_data["temp_voice"],
+            "voice_persian": context.user_data["temp_voice_persian"],
+            "feeling": feeling,
+            "feeling_name": "دستی"
+        }
+        
+        # افزودن به لیست شخصیت‌ها
+        if "story_data" not in context.user_data:
+            context.user_data["story_data"] = {"characters": [], "story_parts": []}
+            
+        context.user_data["story_data"]["characters"].append(character)
+        
+        # پاکسازی متغیرهای موقت
+        del context.user_data["temp_voice"]
+        del context.user_data["temp_voice_persian"]
+        del context.user_data["temp_character_name"]
+        del context.user_data["temp_feeling"]
+        del context.user_data["temp_feeling_name"]
+        
+        # ارائه گزینه‌های بعدی
+        await story_show_next_options(update, context)
+        return None
+    
+    # انتخاب حس از لیست برای شخصیت
+    elif context.user_data["state"] == "story_select_tone":
+        category = context.user_data.get("temp_tone_category")
+        tones = TONES[category]
+        
+        selected_tone = None
+        for tone in tones:
+            if f"{tone['emoji']} {tone['name']}" == text:
+                selected_tone = tone
+                break
+                
+        if not selected_tone:
+            await update.message.reply_text(
+                "❌ لطفاً یک حس معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        # ذخیره حس انتخاب شده
+        context.user_data["temp_feeling"] = selected_tone["prompt"]
+        context.user_data["temp_feeling_name"] = selected_tone["name"]
+        
+        # افزودن شخصیت به داستان
+        character_id = str(uuid4())
+        character = {
+            "id": character_id,
+            "name": context.user_data["temp_character_name"],
+            "voice": context.user_data["temp_voice"],
+            "voice_persian": context.user_data["temp_voice_persian"],
+            "feeling": selected_tone["prompt"],
+            "feeling_name": selected_tone["name"]
+        }
+        
+        # افزودن به لیست شخصیت‌ها
+        if "story_data" not in context.user_data:
+            context.user_data["story_data"] = {"characters": [], "story_parts": []}
+            
+        context.user_data["story_data"]["characters"].append(character)
+        
+        # پاکسازی متغیرهای موقت
+        del context.user_data["temp_voice"]
+        del context.user_data["temp_voice_persian"]
+        del context.user_data["temp_character_name"]
+        del context.user_data["temp_feeling"]
+        del context.user_data["temp_feeling_name"]
+        del context.user_data["temp_tone_category"]
+        
+        # ارائه گزینه‌های بعدی
+        await story_show_next_options(update, context)
+        return None
+
+    # انتخاب شخصیت برای بخش داستان
+    elif context.user_data["state"] == "story_select_part_character":
+        characters = context.user_data["story_data"]["characters"]
+        selected_character = None
+        
+        for character in characters:
+            if text == f"👤 {character['name']} (صدا: {character['voice_persian']})":
+                selected_character = character
+                break
+                
+        if not selected_character:
+            await update.message.reply_text(
+                "❌ لطفاً یک شخصیت معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        # ذخیره شخصیت انتخاب شده برای این بخش
+        context.user_data["temp_part_character_id"] = selected_character["id"]
+        context.user_data["temp_part_character_name"] = selected_character["name"]
+        
+        # درخواست متن این بخش
+        context.user_data["state"] = "story_enter_part_text"
+        context.user_data["previous_state"] = "story_select_part_character"
+        
+        part_number = len(context.user_data["story_data"].get("story_parts", [])) + 1
+        
+        await update.message.reply_text(
+            f"📝 <b>ورود متن برای بخش {part_number} داستان</b>\n\n"
+            f"شخصیت انتخاب شده: {selected_character['name']} (صدا: {selected_character['voice_persian']})\n\n"
+            "لطفاً متن این بخش از داستان را وارد کنید:\n"
+            f"(حداکثر {MAX_TEXT_LENGTH} کاراکتر)",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        return None
+    
+    # ورود متن برای بخش داستان
+    elif context.user_data["state"] == "story_enter_part_text":
+        part_text = text
+        
+        if len(part_text) > MAX_TEXT_LENGTH:
+            await update.message.reply_text(
+                f"❌ متن شما {len(part_text)} کاراکتر است. لطفاً متنی با حداکثر {MAX_TEXT_LENGTH} کاراکتر وارد کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        # ایجاد بخش داستان جدید
+        part = {
+            "id": str(uuid4()),
+            "character_id": context.user_data["temp_part_character_id"],
+            "character_name": context.user_data["temp_part_character_name"],
+            "text": part_text
+        }
+        
+        # افزودن به لیست بخش‌های داستان
+        if "story_parts" not in context.user_data["story_data"]:
+            context.user_data["story_data"]["story_parts"] = []
+            
+        context.user_data["story_data"]["story_parts"].append(part)
+        
+        # پاکسازی متغیرهای موقت
+        del context.user_data["temp_part_character_id"]
+        del context.user_data["temp_part_character_name"]
+        
+        # نمایش گزینه‌های بعدی
+        await story_show_next_options(update, context)
+        return None
+    
+    # افزودن موسیقی پس‌زمینه
+    elif context.user_data["state"] == "story_add_music":
+        if text == "بدون موسیقی":
+            # حذف موسیقی پس‌زمینه قبلی (اگر وجود داشته باشد)
+            if "background_music" in context.user_data["story_data"] and context.user_data["story_data"]["background_music"]:
+                try:
+                    if os.path.exists(context.user_data["story_data"]["background_music"]) and context.user_data["story_data"].get("temp_background_music", False):
+                        os.remove(context.user_data["story_data"]["background_music"])
+                except Exception as e:
+                    logger.warning(f"خطا در حذف فایل موسیقی پس‌زمینه: {str(e)}")
+                    
+            # پاک کردن اطلاعات موسیقی
+            context.user_data["story_data"]["background_music"] = None
+            context.user_data["story_data"]["temp_background_music"] = False
+            
+            await update.message.reply_text(
+                "✅ تنظیمات شما ذخیره شد. داستان شما بدون موسیقی پس‌زمینه ساخته خواهد شد.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            
+            # نمایش گزینه‌های بعدی
+            await story_show_next_options(update, context)
+            return None
+            
+        # در صورت ورود متن به جای فایل موسیقی
+        await update.message.reply_text(
+            "❓ <b>لطفاً یک فایل صوتی ارسال کنید</b>\n\n"
+            "برای افزودن موسیقی پس‌زمینه، باید یک فایل صوتی (MP3, WAV یا OGG) ارسال کنید.\n"
+            "اگر نمی‌خواهید موسیقی پس‌زمینه داشته باشید، روی دکمه «بدون موسیقی» کلیک کنید.",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardMarkup([["بدون موسیقی"], ["🔙 برگشت"]], resize_keyboard=True)
+        )
+        return None
+    
+    # تنظیم میزان صدای موسیقی پس‌زمینه
+    elif context.user_data["state"] == "story_set_music_volume":
+        try:
+            volume = float(text)
+            
+            if volume < 0 or volume > 1:
+                await update.message.reply_text(
+                    "❌ میزان صدا باید عددی بین 0 تا 1 باشد. مثال: 0.2 (معادل 20 درصد)",
+                    reply_markup=ReplyKeyboardMarkup([["0.1", "0.2", "0.3"], ["0.4", "0.5", "0.6"], ["0.7", "0.8", "0.9"], ["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+                
+            # ذخیره میزان صدای موسیقی
+            context.user_data["story_data"]["background_volume"] = volume
+            
+            await update.message.reply_text(
+                f"✅ میزان صدای موسیقی پس‌زمینه روی {int(volume * 100)}% تنظیم شد.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            
+            # نمایش گزینه‌های بعدی
+            await story_show_next_options(update, context)
+            return None
+            
+        except ValueError:
+            await update.message.reply_text(
+                "❌ لطفاً یک عدد معتبر وارد کنید. مثال: 0.2 (معادل 20 درصد)",
+                reply_markup=ReplyKeyboardMarkup([["0.1", "0.2", "0.3"], ["0.4", "0.5", "0.6"], ["0.7", "0.8", "0.9"], ["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+
+# تابع برای ترکیب فایل‌های صوتی
+def combine_audio_files(audio_files, output_file, background_music=None, background_volume=0.1):
+    """ترکیب چندین فایل صوتی و اضافه کردن موسیقی پس‌زمینه"""
+    try:
+        # اگر فایل صوتی وجود ندارد
+        if not audio_files:
+            logger.error("هیچ فایل صوتی برای ترکیب وجود ندارد")
+            return False
+            
+        # ترکیب فایل‌های صوتی
+        combined = AudioSegment.silent(duration=0)
+        
+        for audio_file in audio_files:
+            if os.path.exists(audio_file):
+                audio_segment = AudioSegment.from_file(audio_file)
+                combined += audio_segment
+            else:
+                logger.warning(f"فایل صوتی یافت نشد: {audio_file}")
+        
+        # اضافه کردن موسیقی پس‌زمینه در صورت وجود
+        if background_music and os.path.exists(background_music):
+            try:
+                music = AudioSegment.from_file(background_music)
+                
+                # تنظیم طول موسیقی با طول صدای اصلی
+                if len(music) < len(combined):
+                    # تکرار موسیقی تا پوشش کامل صدای اصلی
+                    repeats = int(len(combined) / len(music)) + 1
+                    music = music * repeats
+                
+                # برش موسیقی به اندازه طول صدای اصلی
+                music = music[:len(combined)]
+                
+                # تنظیم میزان صدای موسیقی پس‌زمینه
+                music = music - (20 - (background_volume * 20))  # تبدیل 0-1 به dB
+                
+                # ترکیب صدای اصلی با موسیقی
+                combined = combined.overlay(music)
+                
+            except Exception as e:
+                logger.error(f"خطا در افزودن موسیقی پس‌زمینه: {str(e)}")
+        
+        # ذخیره فایل نهایی
+        combined.export(output_file, format=output_file.split(".")[-1])
+        return True
+    except Exception as e:
+        logger.error(f"خطا در ترکیب فایل‌های صوتی: {str(e)}")
+        return False
+
+# تابع برای پردازش درخواست‌های داستان پیشرفته در صف
+async def process_story_queue():
+    """پردازش درخواست‌های داستان پیشرفته در صف"""
+    global STORY_PROCESSING
+    
+    if STORY_PROCESSING or not STORY_QUEUE:
+        return
+        
+    STORY_PROCESSING = True
+    
+    try:
+        # برداشتن اولین درخواست از صف
+        request = STORY_QUEUE[0]
+        STORY_QUEUE.pop(0)
+        
+        # استخراج اطلاعات درخواست
+        update = request["update"]
+        context = request["context"]
+        story_data = request["story_data"]
+        
+        # اعلام شروع پردازش به کاربر
+        initial_message = await update.message.reply_text(
+            "🎬 <b>پردازش داستان شما آغاز شد!</b>\n\n"
+            f"• تعداد شخصیت‌ها: {len(story_data['characters'])}\n"
+            f"• تعداد بخش‌های داستان: {len(story_data['story_parts'])}\n\n"
+            "این فرآیند ممکن است چند دقیقه طول بکشد. لطفاً صبور باشید.",
+            parse_mode="HTML"
+        )
+        
+        # ایجاد فایل‌های صوتی برای هر بخش داستان
+        audio_files = []
+        failed_parts = []
+        
+        # ساخت دکمه انیمیشنی برای نمایش پیشرفت
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
+        ])
+        
+        progress_message = await update.message.reply_text(
+            "🔊 <b>در حال ساخت بخش‌های داستان...</b>\n"
+            "0% انجام شده",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        
+        total_parts = len(story_data["story_parts"])
+        
+        for i, part in enumerate(story_data["story_parts"]):
+            # بروزرسانی پیام پیشرفت
+            try:
+                progress_percent = int((i / total_parts) * 100)
+                await progress_message.edit_text(
+                    f"🔊 <b>در حال ساخت بخش‌های داستان...</b>\n"
+                    f"{progress_percent}% انجام شده",
+                    reply_markup=keyboard,
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                logger.warning(f"خطا در به‌روزرسانی پیشرفت: {str(e)}")
+            
+            # اطلاعات بخش داستان
+            character_id = part["character_id"]
+            character = next((c for c in story_data["characters"] if c["id"] == character_id), None)
+            
+            if not character:
+                failed_parts.append({"index": i, "reason": "شخصیت یافت نشد"})
+                continue
+                
+            # ساخت فایل صوتی
+            try:
+                text = part["text"]
+                voice = character["voice"]
+                feeling = character["feeling"]
+                audio_format = story_data.get("audio_format", "mp3")
+                output_file = f"story_part_{uuid4()}.{audio_format}"
+                
+                # ایجاد شناسه یکتا برای این درخواست تولید صدا
+                task_id = f"story_tts_{uuid4().hex}"
+                API_TASKS[task_id] = {"status": "running", "result": None}
+                
+                # شروع درخواست API برای تولید صدا در یک ترد جداگانه
+                thread = threading.Thread(
+                    target=run_api_task,
+                    args=(task_id, generate_audio, text, feeling, voice, output_file, audio_format)
+                )
+                thread.start()
+                
+                # نمایش پروگرس بار انیمیشنی در دکمه شیشه‌ای
+                frame_index = 0
+                while task_id in API_TASKS and API_TASKS[task_id]["status"] == "running":
+                    frame_index = (frame_index + 1) % len(ANIMATED_PROGRESS_FRAMES)
+                    try:
+                        # بروزرسانی دکمه با فریم جدید پروگرس بار
+                        new_keyboard = InlineKeyboardMarkup([
+                            [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
+                        ])
+                        
+                        # بروزرسانی پیام با کیبورد جدید
+                        await progress_message.edit_reply_markup(reply_markup=new_keyboard)
+                        await asyncio.sleep(0.5)
+                    except Exception as e:
+                        logger.warning(f"خطا در به‌روزرسانی پروگرس بار: {str(e)}")
+                
+                # دریافت نتیجه درخواست
+                result = API_TASKS.pop(task_id, {"status": "error", "result": None})
+                success = result["status"] == "completed" and result["result"]
+                
+                if success:
+                    audio_files.append(output_file)
+                else:
+                    failed_parts.append({"index": i, "reason": "خطا در تولید صدا"})
+                    
+            except Exception as e:
+                logger.error(f"خطا در ساخت بخش {i} داستان: {str(e)}")
+                failed_parts.append({"index": i, "reason": str(e)})
+        
+        # حذف پیام پیشرفت
+        try:
+            await progress_message.delete()
+        except Exception as e:
+            logger.warning(f"خطا در حذف پیام پیشرفت: {str(e)}")
+        
+        # ترکیب فایل‌های صوتی
+        if audio_files:
+            await update.message.reply_text(
+                "🔄 <b>در حال ترکیب بخش‌های داستان...</b>",
+                parse_mode="HTML"
+            )
+            
+            final_output = f"story_{uuid4()}.{story_data.get('audio_format', 'mp3')}"
+            background_music = story_data.get("background_music")
+            background_volume = story_data.get("background_volume", 0.1)
+            
+            # ترکیب فایل‌ها
+            combined = combine_audio_files(
+                audio_files, 
+                final_output, 
+                background_music, 
+                background_volume
+            )
+            
+            if combined:
+                # ارسال فایل نهایی به کاربر
+                try:
+                    with open(final_output, "rb") as audio:
+                        await update.message.reply_audio(
+                            audio=audio,
+                            caption=f"🎭 <b>داستان پیشرفته شما آماده شد!</b>\n\n"
+                                   f"• تعداد شخصیت‌ها: {len(story_data['characters'])}\n"
+                                   f"• تعداد بخش‌های داستان: {len(story_data['story_parts'])}\n"
+                                   f"• شخصیت‌ها: {', '.join(c['name'] for c in story_data['characters'])}",
+                            title=f"داستان پیشرفته - {len(story_data['story_parts'])} بخش",
+                            parse_mode="HTML"
+                        )
+                    os.remove(final_output)
+                except Exception as e:
+                    logger.error(f"خطا در ارسال فایل نهایی: {str(e)}")
+                    await update.message.reply_text(
+                        "❌ <b>خطا در ارسال فایل نهایی</b>\n\n"
+                        "متأسفانه مشکلی در ارسال داستان شما رخ داد. لطفاً دوباره تلاش کنید.",
+                        parse_mode="HTML"
+                    )
+            else:
+                await update.message.reply_text(
+                    "❌ <b>خطا در ترکیب فایل‌های صوتی</b>\n\n"
+                    "متأسفانه مشکلی در ترکیب بخش‌های داستان شما رخ داد. لطفاً دوباره تلاش کنید.",
+                    parse_mode="HTML"
+                )
+        else:
+            await update.message.reply_text(
+                "❌ <b>خطا در ساخت داستان</b>\n\n"
+                "متأسفانه هیچ بخشی از داستان شما با موفقیت تولید نشد. لطفاً دوباره تلاش کنید.",
+                parse_mode="HTML"
+            )
+        
+        # پاکسازی فایل‌های موقت
+        for file in audio_files:
+            try:
+                if os.path.exists(file):
+                    os.remove(file)
+            except Exception as e:
+                logger.warning(f"خطا در حذف فایل موقت {file}: {str(e)}")
+        
+        # اگر موسیقی پس‌زمینه موقت است، آن را هم حذف کنیم
+        if story_data.get("temp_background_music") and os.path.exists(story_data.get("background_music")):
+            try:
+                os.remove(story_data.get("background_music"))
+            except Exception as e:
+                logger.warning(f"خطا در حذف موسیقی پس‌زمینه موقت: {str(e)}")
+        
+        # بازگشت به صفحه اصلی
+        keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], 
+                    ["🔊 نمونه صدا و حس ها", "📑 پردازش دسته‌ای"],
+                    ["📚 ساخت داستان پیشرفته"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await update.message.reply_text(
+            "✅ <b>فرآیند ساخت داستان پیشرفته به پایان رسید.</b>\n\n"
+            "برای ساخت داستان جدید یا استفاده از سایر امکانات، یکی از دکمه‌های زیر را انتخاب کنید:",
+            reply_markup=reply_markup,
+            parse_mode="HTML"
+        )
+        
+        # حذف حافظه موقت کاربر
+        context.user_data.clear()
+        context.user_data["state"] = "main"
+        
+    except Exception as e:
+        logger.error(f"خطا در پردازش صف داستان: {str(e)}")
+        
+        # اعلام خطا به کاربر
+        try:
+            keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], 
+                        ["🔊 نمونه صدا و حس ها", "📑 پردازش دسته‌ای"],
+                        ["📚 ساخت داستان پیشرفته"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            
+            await update.message.reply_text(
+                "❌ <b>خطا در پردازش داستان</b>\n\n"
+                "متأسفانه خطایی در پردازش داستان شما رخ داد. لطفاً دوباره تلاش کنید.",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            
+            # حذف حافظه موقت کاربر
+            context.user_data.clear()
+            context.user_data["state"] = "main"
+        except Exception:
+            pass
+    
+    finally:
+        # آزاد کردن پرچم پردازش و بررسی صف
+        STORY_PROCESSING = False
+        
+        # اگر همچنان درخواست‌های دیگری در صف وجود دارد، فراخوانی مجدد تابع
+        if STORY_QUEUE:
+            await process_story_queue()
+
+async def check_membership(bot, user_id):
+    """بررسی عضویت کاربر در کانال مورد نظر"""
+    try:
+        member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
+        # اگر کاربر از کانال خارج شده یا اخراج شده باشد
+        if member.status in ["left", "kicked"]:
+            return False
+        # اگر عضو است (member یا creator یا administrator)
+        return True
+    except Exception as e:
+        logger.error(f"خطا در بررسی عضویت کاربر {user_id}: {str(e)}")
+        return False
+
 # Initialize the Telegram application
 # Create the Application outside of the main function
 application = Application.builder().token(TOKEN).build()
@@ -2078,7 +2844,11 @@ application = Application.builder().token(TOKEN).build()
 # Register handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(button_callback))
+# اضافه کردن handler برای دکمه‌های شیشه‌ای داستان پیشرفته
+application.add_handler(CallbackQueryHandler(story_button_callback, pattern="^(add_character|add_story_part|add_music|finish_story)$"))
 application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
+# اضافه کردن handler برای فایل‌های صوتی داستان پیشرفته
+application.add_handler(MessageHandler((filters.AUDIO | filters.VOICE | filters.Document.AUDIO) & ~filters.COMMAND, handle_audio))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
 async def main():
@@ -2112,3 +2882,304 @@ if __name__ == "__main__":
             loop.close()
         except Exception as e:
             logger.error(f"خطا در توقف ربات: {str(e)}")
+
+# تابع کمکی برای نمایش گزینه‌های بعدی در داستان پیشرفته
+async def story_show_next_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """نمایش گزینه‌های بعدی برای کاربر در فرآیند ساخت داستان پیشرفته"""
+    
+    characters = context.user_data["story_data"]["characters"]
+    story_parts = context.user_data["story_data"].get("story_parts", [])
+    
+    # تعیین حداکثر تعداد شخصیت‌ها و بخش‌های داستان
+    max_characters_reached = len(characters) >= MAX_CHARACTERS
+    max_parts_reached = len(story_parts) >= MAX_STORY_PARTS
+    
+    # ایجاد دکمه‌های شیشه‌ای برای گزینه‌های بعدی
+    buttons = []
+    
+    # اگر به حداکثر تعداد بخش‌ها نرسیده‌ایم، گزینه افزودن بخش داستان
+    if not max_parts_reached:
+        buttons.append([InlineKeyboardButton("📝 افزودن بخش داستان", callback_data="add_story_part")])
+    
+    # اگر به حداکثر تعداد شخصیت‌ها نرسیده‌ایم، گزینه افزودن شخصیت
+    if not max_characters_reached:
+        buttons.append([InlineKeyboardButton("👤 افزودن شخصیت جدید", callback_data="add_character")])
+    
+    # گزینه موسیقی پس‌زمینه
+    buttons.append([InlineKeyboardButton("🎵 افزودن موسیقی پس‌زمینه", callback_data="add_music")])
+    
+    # گزینه پایان و پردازش داستان (فقط اگر حداقل یک بخش داستان داشته باشیم)
+    if story_parts:
+        buttons.append([InlineKeyboardButton("✅ پایان و پردازش داستان", callback_data="finish_story")])
+    
+    # نمایش خلاصه اطلاعات فعلی
+    character_names = [f"• {c['name']} (صدا: {c['voice_persian']}, حس: {c['feeling_name']})" for c in characters]
+    character_info = "\n".join(character_names)
+    
+    part_count = len(story_parts)
+    
+    if part_count > 0:
+        part_info = f"• تعداد بخش‌های داستان: {part_count}/{MAX_STORY_PARTS}"
+    else:
+        part_info = "• هنوز هیچ بخش داستانی ایجاد نشده است."
+    
+    has_background_music = "background_music" in context.user_data["story_data"] and context.user_data["story_data"]["background_music"]
+    music_info = "• موسیقی پس‌زمینه: ✅ دارد" if has_background_music else "• موسیقی پس‌زمینه: ❌ ندارد"
+    
+    # ارسال پیام با اطلاعات فعلی و گزینه‌های بعدی
+    await update.message.reply_text(
+        "📚 <b>اطلاعات داستان شما تا این لحظه:</b>\n\n"
+        f"<b>شخصیت‌ها ({len(characters)}/{MAX_CHARACTERS}):</b>\n{character_info}\n\n"
+        f"{part_info}\n"
+        f"{music_info}\n\n"
+        "<b>لطفاً برای ادامه، یکی از گزینه‌های زیر را انتخاب کنید:</b>",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="HTML"
+    )
+    
+    # تنظیم حالت به منوی اصلی داستان
+    context.user_data["state"] = "story_main_menu"
+    context.user_data["previous_state"] = "main"
+
+# تابع برای مدیریت دکمه‌های شیشه‌ای داستان پیشرفته
+async def story_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """مدیریت دکمه‌های شیشه‌ای در فرآیند ساخت داستان پیشرفته"""
+    query = update.callback_query
+    await query.answer()
+    
+    # افزودن شخصیت جدید
+    if query.data == "add_character":
+        # بررسی محدودیت تعداد شخصیت‌ها
+        if len(context.user_data["story_data"]["characters"]) >= MAX_CHARACTERS:
+            await query.message.reply_text(
+                f"❌ شما به حداکثر تعداد مجاز شخصیت ({MAX_CHARACTERS}) رسیده‌اید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return "story_main_menu"
+            
+        # نمایش لیست صداهای موجود برای انتخاب
+        keyboard = []
+        row = []
+        for voice in SUPPORTED_VOICES:
+            persian_name = VOICE_PERSIAN_NAMES[voice]
+            row.append(persian_name)
+            if len(row) == 3:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+        keyboard.append(["🔙 برگشت"])
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        character_number = len(context.user_data["story_data"]["characters"]) + 1
+        
+        await query.message.reply_text(
+            f"👤 <b>انتخاب شخصیت {character_number}</b>\n\n"
+            "لطفاً یک صدا برای شخصیت جدید داستان خود انتخاب کنید:",
+            reply_markup=reply_markup,
+            parse_mode="HTML"
+        )
+        
+        context.user_data["state"] = "story_select_character"
+        context.user_data["previous_state"] = "story_main_menu"
+        return "story_select_character"
+        
+    # افزودن بخش داستان
+    elif query.data == "add_story_part":
+        # بررسی محدودیت تعداد بخش‌های داستان
+        if len(context.user_data["story_data"].get("story_parts", [])) >= MAX_STORY_PARTS:
+            await query.message.reply_text(
+                f"❌ شما به حداکثر تعداد مجاز بخش‌های داستان ({MAX_STORY_PARTS}) رسیده‌اید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return "story_main_menu"
+            
+        # نمایش لیست شخصیت‌ها برای انتخاب
+        characters = context.user_data["story_data"]["characters"]
+        
+        if not characters:
+            await query.message.reply_text(
+                "❌ ابتدا باید حداقل یک شخصیت به داستان خود اضافه کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        keyboard = []
+        for character in characters:
+            keyboard.append([f"👤 {character['name']} (صدا: {character['voice_persian']})"])
+        keyboard.append(["🔙 برگشت"])
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        part_number = len(context.user_data["story_data"].get("story_parts", [])) + 1
+        
+        await query.message.reply_text(
+            f"📝 <b>ایجاد بخش {part_number} داستان</b>\n\n"
+            "لطفاً شخصیتی که می‌خواهید این بخش از داستان را بیان کند، انتخاب کنید:",
+            reply_markup=reply_markup,
+            parse_mode="HTML"
+        )
+        
+        context.user_data["state"] = "story_select_part_character"
+        context.user_data["previous_state"] = "story_main_menu"
+        return None
+        
+    # افزودن موسیقی پس‌زمینه
+    elif query.data == "add_music":
+        await query.message.reply_text(
+            "🎵 <b>افزودن موسیقی پس‌زمینه</b>\n\n"
+            "لطفاً فایل موسیقی خود را برای استفاده در پس‌زمینه داستان ارسال کنید.\n\n"
+            "نکات مهم:\n"
+            "• فرمت‌های پشتیبانی شده: MP3, WAV, OGG\n"
+            "• حداکثر حجم فایل: 5 مگابایت\n"
+            "• مدت زمان توصیه شده: کمتر از 3 دقیقه\n\n"
+            "اگر نمی‌خواهید موسیقی پس‌زمینه اضافه کنید، روی دکمه «بدون موسیقی» کلیک کنید.",
+            reply_markup=ReplyKeyboardMarkup([["بدون موسیقی"], ["🔙 برگشت"]], resize_keyboard=True),
+            parse_mode="HTML"
+        )
+        
+        context.user_data["state"] = "story_add_music"
+        context.user_data["previous_state"] = "story_main_menu"
+        return None
+        
+    # پایان و پردازش داستان
+    elif query.data == "finish_story":
+        # بررسی وجود حداقل یک بخش داستان
+        if not context.user_data["story_data"].get("story_parts", []):
+            await query.message.reply_text(
+                "❌ شما باید حداقل یک بخش داستان اضافه کنید تا بتوانید پردازش را آغاز کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        # اضافه کردن درخواست به صف
+        story_request = {
+            "update": update,
+            "context": context,
+            "story_data": context.user_data["story_data"]
+        }
+        
+        STORY_QUEUE.append(story_request)
+        
+        # اعلام موقعیت در صف
+        queue_position = len(STORY_QUEUE)
+        
+        await query.message.reply_text(
+            "✅ <b>داستان شما برای پردازش ثبت شد!</b>\n\n"
+            f"موقعیت شما در صف: {queue_position}\n\n"
+            "پردازش داستان ممکن است چند دقیقه زمان ببرد. هر داستان شامل این مراحل است:\n"
+            "1. تولید صدا برای هر بخش داستان\n"
+            "2. ترکیب صداها به ترتیب\n"
+            "3. افزودن موسیقی پس‌زمینه (در صورت وجود)\n\n"
+            "لطفاً صبور باشید. در صورت تکمیل فرآیند، نتیجه به شما ارسال خواهد شد.",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        
+        # شروع پردازش صف
+        await process_story_queue()
+        
+        # تنظیم حالت کاربر
+        context.user_data["state"] = "main"
+        return None
+
+# تابع برای مدیریت دریافت فایل صوتی برای موسیقی پس‌زمینه
+async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """مدیریت دریافت فایل صوتی برای موسیقی پس‌زمینه داستان"""
+    user_id = update.effective_user.id
+    
+    # بررسی حالت کاربر - فقط در حالت افزودن موسیقی پذیرفته شود
+    if context.user_data.get("state") != "story_add_music":
+        return "main"
+        
+    # دریافت فایل صوتی
+    file_obj = None
+    file_format = None
+    
+    # بررسی نوع فایل ارسالی
+    if update.message.audio:
+        file_obj = update.message.audio
+        file_format = "audio"
+    elif update.message.voice:
+        file_obj = update.message.voice
+        file_format = "voice"
+    elif update.message.document:
+        mime_type = update.message.document.mime_type or ""
+        if mime_type.startswith("audio/"):
+            file_obj = update.message.document
+            file_format = "document"
+        else:
+            await update.message.reply_text(
+                "❌ فایل ارسال شده یک فایل صوتی معتبر نیست. لطفاً یک فایل MP3، WAV یا OGG ارسال کنید.",
+                reply_markup=ReplyKeyboardMarkup([["بدون موسیقی"], ["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return "story_add_music"
+    
+    if not file_obj:
+        await update.message.reply_text(
+            "❌ فایل ارسال شده یک فایل صوتی معتبر نیست. لطفاً یک فایل MP3، WAV یا OGG ارسال کنید.",
+            reply_markup=ReplyKeyboardMarkup([["بدون موسیقی"], ["🔙 برگشت"]], resize_keyboard=True)
+        )
+        return "story_add_music"
+        
+    # بررسی حجم فایل (حداکثر 5 مگابایت)
+    max_size_bytes = 5 * 1024 * 1024  # 5 MB
+    
+    if file_obj.file_size > max_size_bytes:
+        await update.message.reply_text(
+            "❌ حجم فایل ارسالی بیشتر از حد مجاز (5 مگابایت) است. لطفاً یک فایل کوچکتر ارسال کنید.",
+            reply_markup=ReplyKeyboardMarkup([["بدون موسیقی"], ["🔙 برگشت"]], resize_keyboard=True)
+        )
+        return "story_add_music"
+        
+    # دریافت و ذخیره فایل صوتی
+    try:
+        # ارسال پیام در حال دانلود
+        download_message = await update.message.reply_text(
+            "🔄 در حال دریافت فایل صوتی...",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        
+        # دریافت فایل
+        file = await file_obj.get_file()
+        file_extension = os.path.splitext(file.file_path)[1].lower() if "." in file.file_path else ".mp3"
+        
+        if file_extension not in [".mp3", ".wav", ".ogg"]:
+            file_extension = ".mp3"  # فرمت پیش‌فرض
+            
+        # ذخیره فایل با نام یکتا
+        file_name = f"bgmusic_{uuid4()}{file_extension}"
+        await file.download_to_drive(file_name)
+        
+        # بروزرسانی پیام
+        await download_message.edit_text(
+            "✅ فایل موسیقی با موفقیت دریافت شد. در حال پردازش...",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        
+        # ذخیره مسیر فایل موسیقی در داده‌های داستان
+        context.user_data["story_data"]["background_music"] = file_name
+        context.user_data["story_data"]["temp_background_music"] = True  # نشان می‌دهد که فایل موقت است و باید بعداً حذف شود
+        
+        # درخواست میزان صدای موسیقی
+        context.user_data["state"] = "story_set_music_volume"
+        context.user_data["previous_state"] = "story_add_music"
+        
+        await update.message.reply_text(
+            "🔊 <b>تنظیم میزان صدای موسیقی پس‌زمینه</b>\n\n"
+            "لطفاً میزان صدای موسیقی پس‌زمینه را به صورت عددی بین 0 تا 1 وارد کنید:\n"
+            "• 0.1 = بسیار آرام (10%)\n"
+            "• 0.5 = متوسط (50%)\n"
+            "• 0.9 = بسیار بلند (90%)",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardMarkup([["0.1", "0.2", "0.3"], ["0.4", "0.5", "0.6"], ["0.7", "0.8", "0.9"], ["🔙 برگشت"]], resize_keyboard=True)
+        )
+        
+        return "story_set_music_volume"
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت و ذخیره فایل موسیقی: {str(e)}")
+        await update.message.reply_text(
+            "❌ خطا در دریافت فایل موسیقی. لطفاً دوباره تلاش کنید یا یک فایل دیگر ارسال کنید.",
+            reply_markup=ReplyKeyboardMarkup([["بدون موسیقی"], ["🔙 برگشت"]], resize_keyboard=True)
+        )
+        return "story_add_music"
