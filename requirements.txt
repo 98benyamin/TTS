@@ -6,3 +6,5 @@ uvicorn==0.30.6
 pillow==10.4.0
 python-multipart==0.0.9
 pydub==0.25.1
+urllib3>=1.26.7
+certifi>=2021.5.30
