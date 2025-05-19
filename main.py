@@ -524,7 +524,7 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         keyboard = [
             ["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], 
-            ["🔊 نمونه صدا و حس ها"]
+            ["🔊 نمونه صدا و حس ها", "📑 پردازش دسته‌ای"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -536,7 +536,8 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 "📌 <b>با این ربات می‌توانید:</b>\n"
                 "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
                 "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
-                "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n"
+                "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n"
+                "• چندین متن را به صورت همزمان به صدا تبدیل کنید\n\n"
                 "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
                 reply_markup=reply_markup,
                 parse_mode="HTML"
@@ -548,7 +549,8 @@ async def start_bot_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 "📌 <b>با این ربات می‌توانید:</b>\n"
                 "• متن‌های خود را با حس و لحن دلخواه به صدا تبدیل کنید\n"
                 "• از دستیار هوشمند برای پاسخ به سوالات و تحلیل تصاویر استفاده کنید\n"
-                "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n\n"
+                "• نمونه صداها و حس‌های مختلف را بشنوید و بهترین ترکیب را انتخاب کنید\n"
+                "• چندین متن را به صورت همزمان به صدا تبدیل کنید\n\n"
                 "👇 <b>لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</b>",
                 reply_markup=reply_markup,
                 parse_mode="HTML"
@@ -1578,6 +1580,495 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
                 )
                 
+            return None
+
+    if text == "📑 پردازش دسته‌ای":
+        try:
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "📑 <b>پردازش دسته‌ای - تبدیل چندین متن به صدا</b>\n\n"
+                "با این قابلیت می‌توانید چندین متن را همزمان به صدا تبدیل کنید.\n"
+                "ابتدا حس و لحن مشترک برای تمامی متن‌ها را انتخاب کنید.\n\n"
+                "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "batch_select_tone_category"
+            context.user_data["previous_state"] = "main"
+            context.user_data["batch_texts"] = []  # لیست متن‌ها برای پردازش دسته‌ای
+            return None
+        except Exception as e:
+            logger.error(f"خطا در نمایش منوی پردازش دسته‌ای برای کاربر {user_id}: {str(e)}")
+            return None
+
+    # انتخاب دسته‌بندی لحن برای پردازش دسته‌ای
+    elif context.user_data["state"] == "batch_select_tone_category":
+        category_map = {
+            "✍️ لحن و حس دستی": "manual_feeling",
+            "📢 لحن‌های کاربردی": "functional",
+            "👑 لحن‌های نمایشی / شخصیتی": "character_affects",
+            "🎤 لحن‌های گفتاری": "voice_styles",
+            "🎭 لحن‌های احساسی": "emotional"
+        }
+        if text in category_map:
+            if text == "✍️ لحن و حس دستی":
+                context.user_data["state"] = "batch_manual_feeling"
+                context.user_data["previous_state"] = "batch_select_tone_category"
+                context.user_data["feeling_manual"] = True
+                await update.message.reply_text(
+                    "لطفاً حس یا دستورالعمل‌های صدا را برای تمامی متن‌ها وارد کنید (حداکثر 500 کاراکتر).\n"
+                    "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+            else:
+                category = category_map[text]
+                tones = TONES[category]
+                keyboard = []
+                for i in range(0, len(tones), 2):
+                    row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                    if i + 1 < len(tones):
+                        row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                category_names = {
+                    "emotional": "لحن‌های احساسی",
+                    "voice_styles": "لحن‌های گفتاری",
+                    "character_affects": "لحن‌های نمایشی / شخصیتی",
+                    "functional": "لحن‌های کاربردی"
+                }
+                await update.message.reply_text(
+                    f"🎙 {category_names[category]}\n\nلطفاً یک حس مشترک برای تمامی متن‌ها انتخاب کنید:",
+                    reply_markup=reply_markup
+                )
+                context.user_data["state"] = "batch_select_tone"
+                context.user_data["previous_state"] = "batch_select_tone_category"
+                context.user_data["selected_category"] = category
+                return None
+
+    # انتخاب حس برای پردازش دسته‌ای
+    elif context.user_data["state"] == "batch_select_tone":
+        category = context.user_data.get("selected_category")
+        tones = TONES[category]
+        tone_name = text
+        for tone in tones:
+            if f"{tone['emoji']} {tone['name']}" == text:
+                tone_name = tone["name"]
+                context.user_data["feeling"] = tone["prompt"]
+                context.user_data["feeling_name"] = tone_name
+                context.user_data["state"] = "batch_voice"
+                context.user_data["previous_state"] = "batch_select_tone"
+                context.user_data["feeling_manual"] = False
+                
+                # انتخاب صدا
+                keyboard = []
+                row = []
+                for voice in SUPPORTED_VOICES:
+                    persian_name = VOICE_PERSIAN_NAMES[voice]
+                    row.append(persian_name)
+                    if len(row) == 4:
+                        keyboard.append(row)
+                        row = []
+                if row:
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                await update.message.reply_text(
+                    "لطفاً یک صدای مشترک برای تمامی متن‌ها انتخاب کنید:",
+                    reply_markup=reply_markup
+                )
+                return None
+        await update.message.reply_text(
+            "لطفاً یک حس معتبر از لیست انتخاب کنید.",
+            reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+        )
+        return None
+
+    # دریافت حس دستی برای پردازش دسته‌ای
+    elif context.user_data["state"] == "batch_manual_feeling":
+        feeling = text
+        if len(feeling) > MAX_FEELING_LENGTH:
+            await update.message.reply_text(
+                f"خطا: حس شما {len(feeling)} کاراکتر است. لطفاً حسی با حداکثر {MAX_FEELING_LENGTH} کاراکتر وارد کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+        context.user_data["feeling"] = feeling
+        context.user_data["feeling_name"] = "دستی"
+        context.user_data["state"] = "batch_voice"
+        context.user_data["previous_state"] = "batch_manual_feeling"
+        
+        # انتخاب صدا
+        keyboard = []
+        row = []
+        for voice in SUPPORTED_VOICES:
+            persian_name = VOICE_PERSIAN_NAMES[voice]
+            row.append(persian_name)
+            if len(row) == 4:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+        keyboard.append(["🔙 برگشت"])
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await update.message.reply_text(
+            "لطفاً یک صدای مشترک برای تمامی متن‌ها انتخاب کنید:",
+            reply_markup=reply_markup
+        )
+        return None
+            
+    # انتخاب صدا برای پردازش دسته‌ای
+    elif context.user_data["state"] == "batch_voice":
+        voice_persian = text
+        
+        if voice_persian in PERSIAN_TO_ORIGINAL_VOICE:
+            voice = PERSIAN_TO_ORIGINAL_VOICE[voice_persian]
+            context.user_data["voice"] = voice
+            context.user_data["voice_persian"] = voice_persian
+            context.user_data["state"] = "batch_format"
+            context.user_data["previous_state"] = "batch_voice"
+            
+            keyboard = [["MP3", "WAV", "OGG"], ["🔙 برگشت"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً فرمت صوتی مشترک برای تمامی متن‌ها را انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            return None
+        else:
+            await update.message.reply_text(
+                "لطفاً یک صدای معتبر از لیست انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+    # انتخاب فرمت صوتی برای پردازش دسته‌ای
+    elif context.user_data["state"] == "batch_format":
+        audio_format = text.lower()
+        if audio_format not in SUPPORTED_FORMATS:
+            await update.message.reply_text(
+                "لطفاً یک فرمت معتبر (MP3، WAV، OGG) انتخاب کنید.",
+                reply_markup=ReplyKeyboardMarkup([["MP3", "WAV", "OGG"], ["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        context.user_data["audio_format"] = audio_format
+        context.user_data["state"] = "batch_enter_texts"
+        context.user_data["previous_state"] = "batch_format"
+        
+        keyboard = [["✅ پایان ورود متن‌ها"], ["🔙 برگشت"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await update.message.reply_text(
+            "📝 <b>ورود متن‌های چندگانه</b>\n\n"
+            f"• <b>حس و لحن:</b> {context.user_data['feeling_name']}\n"
+            f"• <b>صدا:</b> {context.user_data['voice_persian']}\n"
+            f"• <b>فرمت:</b> {audio_format.upper()}\n\n"
+            "لطفاً متن‌های خود را یکی یکی ارسال کنید (هر متن در یک پیام).\n"
+            "حداکثر طول هر متن 1000 کاراکتر است.\n"
+            "پس از ورود تمامی متن‌ها، روی دکمه «پایان ورود متن‌ها» کلیک کنید.",
+            reply_markup=reply_markup,
+            parse_mode="HTML"
+        )
+        return None
+            
+    # دریافت متن‌ها برای پردازش دسته‌ای
+    elif context.user_data["state"] == "batch_enter_texts":
+        if text == "✅ پایان ورود متن‌ها":
+            # بررسی تعداد متن‌های وارد شده
+            if not context.user_data.get("batch_texts", []):
+                await update.message.reply_text(
+                    "❌ شما هنوز هیچ متنی وارد نکرده‌اید. لطفاً حداقل یک متن را وارد کنید.",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                return None
+                
+            # شروع پردازش دسته‌ای متن‌ها
+            context.user_data["state"] = "batch_processing"
+            context.user_data["previous_state"] = "batch_enter_texts"
+            
+            # تنظیمات مشترک برای همه متن‌ها
+            instructions = context.user_data["feeling"]
+            voice = context.user_data["voice"]
+            voice_persian = context.user_data["voice_persian"]
+            feeling_name = context.user_data["feeling_name"]
+            audio_format = context.user_data["audio_format"]
+            
+            # متن‌ها برای تبدیل
+            batch_texts = context.user_data["batch_texts"]
+            total_texts = len(batch_texts)
+            
+            # نمایش پیام با اطلاعات صداهای در حال تولید
+            initial_text = f"🔊 <b>در حال تبدیل {total_texts} متن به صدا...</b>\n\n• <b>صدا:</b> {voice_persian}\n• <b>حس:</b> {feeling_name}\n• <b>فرمت:</b> {audio_format.upper()}"
+            
+            # استفاده از دکمه شیشه‌ای برای نمایش پروگرس بار
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[0]}", callback_data="waiting")]
+            ])
+            
+            progress_message = await update.message.reply_text(
+                initial_text,
+                reply_markup=keyboard,
+                parse_mode="HTML"
+            )
+            
+            # لیست فایل‌های صوتی تولید شده
+            generated_audio_files = []
+            success_count = 0
+            failed_texts = []
+            
+            # تبدیل هر متن به صدا
+            for i, text_to_convert in enumerate(batch_texts):
+                # ایجاد شناسه یکتا برای این درخواست تولید صدا
+                task_id = f"batch_tts_{uuid4().hex}"
+                output_file = f"output_{uuid4()}.{audio_format}"
+                API_TASKS[task_id] = {"status": "running", "result": None}
+                
+                # شروع درخواست API برای تولید صدا در یک ترد جداگانه
+                thread = threading.Thread(
+                    target=run_api_task,
+                    args=(task_id, generate_audio, text_to_convert, instructions, voice, output_file, audio_format)
+                )
+                thread.start()
+                
+                # بروزرسانی پیام پیشرفت
+                try:
+                    # بروزرسانی پیشرفت
+                    progress_text = f"🔊 <b>در حال تبدیل {total_texts} متن به صدا...</b>\n\n• <b>صدا:</b> {voice_persian}\n• <b>حس:</b> {feeling_name}\n• <b>فرمت:</b> {audio_format.upper()}\n\n⏳ <b>پیشرفت:</b> ({i+1}/{total_texts})"
+                    await progress_message.edit_text(
+                        progress_text,
+                        reply_markup=keyboard,
+                        parse_mode="HTML"
+                    )
+                except Exception as e:
+                    logger.warning(f"خطا در به‌روزرسانی پیشرفت: {str(e)}")
+                
+                # نمایش پروگرس بار انیمیشنی در دکمه شیشه‌ای
+                frame_index = 0
+                while task_id in API_TASKS and API_TASKS[task_id]["status"] == "running":
+                    frame_index = (frame_index + 1) % len(ANIMATED_PROGRESS_FRAMES)
+                    try:
+                        # بروزرسانی دکمه با فریم جدید پروگرس بار
+                        new_keyboard = InlineKeyboardMarkup([
+                            [InlineKeyboardButton(f"در حال پردازش {ANIMATED_PROGRESS_FRAMES[frame_index]}", callback_data="waiting")]
+                        ])
+                        
+                        # بروزرسانی پیام با کیبورد جدید
+                        await progress_message.edit_reply_markup(reply_markup=new_keyboard)
+                        await asyncio.sleep(0.5)
+                    except Exception as e:
+                        logger.warning(f"خطا در به‌روزرسانی پروگرس بار: {str(e)}")
+                
+                # دریافت نتیجه درخواست
+                result = API_TASKS.pop(task_id, {"status": "error", "result": None})
+                success = result["status"] == "completed" and result["result"]
+                
+                if success:
+                    generated_audio_files.append(output_file)
+                    success_count += 1
+                else:
+                    failed_texts.append(text_to_convert)
+            
+            # حذف پیام پروگرس بار
+            try:
+                await progress_message.delete()
+            except Exception as e:
+                logger.warning(f"خطا در حذف پیام پروگرس بار: {str(e)}")
+            
+            # ارسال فایل‌های صوتی
+            if success_count > 0:
+                await update.message.reply_text(
+                    f"✅ <b>{success_count} از {total_texts} فایل صوتی با موفقیت تولید شد!</b>\n"
+                    "در حال ارسال فایل‌های صوتی...",
+                    parse_mode="HTML"
+                )
+                
+                # ارسال هر فایل صوتی
+                for i, audio_file in enumerate(generated_audio_files):
+                    try:
+                        file_desc = f"فایل {i+1} از {success_count}"
+                        with open(audio_file, "rb") as audio:
+                            await update.message.reply_audio(
+                                audio=audio,
+                                caption=f"🎙 <b>تبدیل دسته‌ای متن به صدا</b> - {file_desc}\n\n• <b>گوینده:</b> {voice_persian}\n• <b>حس و لحن:</b> {feeling_name}\n• <b>فرمت:</b> {audio_format.upper()}",
+                                title=f"صدای تولید شده {i+1} - {voice_persian}",
+                                parse_mode="HTML"
+                            )
+                        # حذف فایل پس از ارسال
+                        os.remove(audio_file)
+                    except Exception as e:
+                        logger.error(f"خطا در ارسال فایل صوتی {i+1}: {str(e)}")
+                
+            # نمایش متن‌هایی که تبدیل نشده‌اند
+            if failed_texts:
+                failed_message = "❌ <b>متن‌های زیر تبدیل نشدند:</b>\n\n"
+                for i, failed_text in enumerate(failed_texts):
+                    preview = failed_text[:50] + "..." if len(failed_text) > 50 else failed_text
+                    failed_message += f"{i+1}. {preview}\n"
+                await update.message.reply_text(
+                    failed_message,
+                    parse_mode="HTML"
+                )
+            
+            # بازگشت به صفحه اصلی
+            keyboard = [["🎙 تبدیل متن به صدا", "🤖 دستیار هوشمند"], ["🔊 نمونه صدا و حس ها", "📑 پردازش دسته‌ای"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "✅ <b>فرآیند تبدیل دسته‌ای به پایان رسید!</b>\n\n"
+                "برای تولید صدای جدید یا استفاده از سایر امکانات، یکی از دکمه‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data.clear()
+            context.user_data["state"] = "main"
+            return None
+        
+        # دریافت متن جدید
+        if len(text) > MAX_TEXT_LENGTH:
+            await update.message.reply_text(
+                f"❌ خطا: متن شما {len(text)} کاراکتر است. لطفاً متنی با حداکثر {MAX_TEXT_LENGTH} کاراکتر وارد کنید.",
+                reply_markup=ReplyKeyboardMarkup([["✅ پایان ورود متن‌ها"], ["🔙 برگشت"]], resize_keyboard=True)
+            )
+            return None
+            
+        # اضافه کردن متن به لیست
+        if "batch_texts" not in context.user_data:
+            context.user_data["batch_texts"] = []
+            
+        context.user_data["batch_texts"].append(text)
+        
+        # به روز رسانی وضعیت
+        text_count = len(context.user_data["batch_texts"])
+        
+        keyboard = [["✅ پایان ورود متن‌ها"], ["🔙 برگشت"]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await update.message.reply_text(
+            f"✅ متن شماره {text_count} با موفقیت ثبت شد.\n\n"
+            "لطفاً متن بعدی را وارد کنید یا برای شروع پردازش روی دکمه «پایان ورود متن‌ها» کلیک کنید.",
+            reply_markup=reply_markup
+        )
+        return None
+
+    if text == "🔙 برگشت":
+        current_state = context.user_data.get("state", "main")
+        previous_state = context.user_data.get("previous_state", "main")
+        
+        # حالت‌های پردازش دسته‌ای
+        if current_state == "batch_select_tone_category":
+            return await start(update, context)
+            
+        if current_state == "batch_select_tone":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "📑 <b>پردازش دسته‌ای - تبدیل چندین متن به صدا</b>\n\n"
+                "با این قابلیت می‌توانید چندین متن را همزمان به صدا تبدیل کنید.\n"
+                "ابتدا حس و لحن مشترک برای تمامی متن‌ها را انتخاب کنید.\n\n"
+                "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "batch_select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+            
+        if current_state == "batch_manual_feeling":
+            keyboard = [
+                ["✍️ لحن و حس دستی"],
+                ["📢 لحن‌های کاربردی", "👑 لحن‌های نمایشی / شخصیتی"],
+                ["🎤 لحن‌های گفتاری", "🎭 لحن‌های احساسی"],
+                ["🔙 برگشت"]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "📑 <b>پردازش دسته‌ای - تبدیل چندین متن به صدا</b>\n\n"
+                "با این قابلیت می‌توانید چندین متن را همزمان به صدا تبدیل کنید.\n"
+                "ابتدا حس و لحن مشترک برای تمامی متن‌ها را انتخاب کنید.\n\n"
+                "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+            context.user_data["state"] = "batch_select_tone_category"
+            context.user_data["previous_state"] = "main"
+            return None
+            
+        if current_state == "batch_voice":
+            if context.user_data.get("feeling_manual", False):
+                await update.message.reply_text(
+                    "لطفاً حس یا دستورالعمل‌های صدا را برای تمامی متن‌ها وارد کنید (حداکثر 500 کاراکتر).\n"
+                    "مثال: Dramatic یا Gruff, fast-talking, New York accent",
+                    reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                )
+                context.user_data["state"] = "batch_manual_feeling"
+                context.user_data["previous_state"] = "batch_select_tone_category"
+            else:
+                category = context.user_data.get("selected_category")
+                tones = TONES[category]
+                keyboard = []
+                for i in range(0, len(tones), 2):
+                    row = [f"{tones[i]['emoji']} {tones[i]['name']}"]
+                    if i + 1 < len(tones):
+                        row.append(f"{tones[i+1]['emoji']} {tones[i+1]['name']}")
+                    keyboard.append(row)
+                keyboard.append(["🔙 برگشت"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                category_names = {
+                    "emotional": "لحن‌های احساسی",
+                    "voice_styles": "لحن‌های گفتاری",
+                    "character_affects": "لحن‌های نمایشی / شخصیتی",
+                    "functional": "لحن‌های کاربردی"
+                }
+                await update.message.reply_text(
+                    f"🎙 {category_names[category]}\n\nلطفاً یک حس مشترک برای تمامی متن‌ها انتخاب کنید:",
+                    reply_markup=reply_markup
+                )
+                context.user_data["state"] = "batch_select_tone"
+                context.user_data["previous_state"] = "batch_select_tone_category"
+            return None
+            
+        if current_state == "batch_format":
+            keyboard = []
+            row = []
+            for voice in SUPPORTED_VOICES:
+                persian_name = VOICE_PERSIAN_NAMES[voice]
+                row.append(persian_name)
+                if len(row) == 4:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+            keyboard.append(["🔙 برگشت"])
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً یک صدای مشترک برای تمامی متن‌ها انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "batch_voice"
+            context.user_data["previous_state"] = "batch_select_tone"
+            return None
+            
+        if current_state == "batch_enter_texts":
+            keyboard = [["MP3", "WAV", "OGG"], ["🔙 برگشت"]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text(
+                "لطفاً فرمت صوتی مشترک برای تمامی متن‌ها را انتخاب کنید:",
+                reply_markup=reply_markup
+            )
+            context.user_data["state"] = "batch_format"
+            context.user_data["previous_state"] = "batch_voice"
             return None
 
 # Initialize the Telegram application
