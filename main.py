@@ -99,7 +99,11 @@ async def show_animated_progress(update: Update, context: ContextTypes.DEFAULT_T
 def run_api_task(task_id, func, *args, **kwargs):
     """اجرای تابع API در یک ترد جداگانه و ذخیره نتیجه"""
     try:
-        result = func(*args, **kwargs)
+        # اگر تابع غیرهمزمان (async) باشد، آن را در حلقه رویداد اجرا کنیم
+        if asyncio.iscoroutinefunction(func):
+            result = asyncio.run(func(*args, **kwargs))
+        else:
+            result = func(*args, **kwargs)
         API_TASKS[task_id] = {"status": "completed", "result": result}
     except Exception as e:
         logger.error(f"خطا در اجرای API: {str(e)}")
@@ -2230,7 +2234,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # یافتن شخصیت با این نام
                 found = False
-                for idx, char in enumerate(context.user_data["story_characters"]):
+                for idx, char in enumerate(context.user_data.get("story_characters", [])):
                     if char["name"] == character_name:
                         # انتخاب شخصیت جدید
                         context.user_data["current_character_index"] = idx
@@ -2248,9 +2252,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     return None
                 else:
+                    # نمایش لیست شخصیت‌های موجود
+                    character_list = ", ".join([char["name"] for char in context.user_data.get("story_characters", [])])
                     await update.message.reply_text(
-                        "❌ شخصیت مورد نظر یافت نشد.",
-                        reply_markup=ReplyKeyboardMarkup([["🔙 برگشت"]], resize_keyboard=True)
+                        f"❌ شخصیت '{character_name}' یافت نشد.\n\nشخصیت‌های موجود: {character_list}",
+                        reply_markup=ReplyKeyboardMarkup([[f"🎭 شخصیت: {char['name']}" for char in context.user_data.get("story_characters", [])][:2],
+                            ["✅ پایان ورود متن‌ها"], ["🔙 برگشت"]], resize_keyboard=True)
                     )
                     return None
             
@@ -2373,7 +2380,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     # ادغام فایل‌های صوتی
                     final_output_file = f"story_{uuid4()}.{audio_format}"
-                    merge_success = merge_audio_files(generated_audio_files, final_output_file, audio_format)
+                    merge_success = await merge_audio_files(generated_audio_files, audio_format, update.effective_user.id)
                     
                     if merge_success:
                         # ساخت توضیحات فایل صوتی
@@ -2382,7 +2389,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             caption += f"• {char['name']} - صدا: {char['voice_persian']} - حس: {char['feeling_name']}\n"
                         
                         # ارسال فایل صوتی نهایی
-                        with open(final_output_file, "rb") as audio:
+                        with open(merge_success, "rb") as audio:
                             await update.message.reply_audio(
                                 audio=audio,
                                 caption=caption,
@@ -2392,7 +2399,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         # حذف فایل نهایی
                         try:
-                            os.remove(final_output_file)
+                            os.remove(merge_success)
                         except Exception as e:
                             logger.warning(f"خطا در حذف فایل نهایی: {str(e)}")
                     else:
@@ -3066,7 +3073,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         else:
                             failed_segments.append({
                                 "character": character["name"],
-                                "text": text[:30] + "..." if len(text) > 30 else text
+                                "text": text[:30] + "..." if len(text) > 30 else text,
+                                "error": str(e)
                             })
                     except Exception as e:
                         logger.error(f"خطا در تولید صدا برای سگمنت {i} کاربر {user_id}: {str(e)}")
