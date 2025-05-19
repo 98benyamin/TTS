@@ -184,6 +184,7 @@ WEBHOOK_URL = "https://tts-qroo.onrender.com/webhook"
 MAX_TEXT_LENGTH = 1000
 MAX_FEELING_LENGTH = 500
 MAX_HISTORY = 50  # Maximum number of messages to keep in history
+MAX_CHARACTERS = 5  # حداکثر تعداد شخصیت‌های مجاز در داستان
 
 # کانال اجباری
 REQUIRED_CHANNEL = "@Dezhcode"
@@ -265,7 +266,7 @@ VOICE_PERSIAN_NAMES = {
 PERSIAN_TO_ORIGINAL_VOICE = {v: k for k, v in VOICE_PERSIAN_NAMES.items()}
 
 # فرمت‌های صوتی پشتیبانی‌شده
-SUPPORTED_FORMATS = ["mp3", "wav", "ogg"]
+SUPPORTED_FORMATS = ["MP3", "WAV", "OGG"]
 
 # تعریف لحن‌ها
 TONES = {
