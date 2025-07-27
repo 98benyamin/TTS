@@ -175,7 +175,7 @@ async def generate_sample_text(update: Update, tone_name, tone_prompt, max_lengt
         return f"نمونه متن با حس {tone_name}. این یک متن کوتاه است که نشان دهنده این حس می‌باشد."
 
 # تنظیمات ربات
-TOKEN = "7520523575:AAG787CwUPBFctoJzjETJ6Gk-GxxnF0RaWc"
+TOKEN = "7520523575:AAGwldAeNo6CZJ4W7USI9dRPyPdbsM2VKFI"
 WEBHOOK_URL = "https://tts-qroo.onrender.com/webhook"
 MAX_TEXT_LENGTH = 1000
 MAX_FEELING_LENGTH = 500
